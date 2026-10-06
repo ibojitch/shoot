@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+import { loadModel } from './modelLoader.js';
 
 const MODEL_URL = new URL('./ibojitch_player.glb', import.meta.url).href;
 
@@ -45,13 +45,8 @@ function applyHappyFace(root) {
   root.add(face);
 }
 
-export function loadIbojitchPlayer() {
-  const loader = new GLTFLoader();
-  return new Promise((resolve, reject) => {
-    loader.load(
-      MODEL_URL,
-      (gltf) => {
-        const root = gltf.scene;
+export async function loadIbojitchPlayer() {
+        const root = await loadModel(MODEL_URL);
         root.name = 'ibojitch-player';
         applyHappyFace(root);
 
@@ -70,10 +65,5 @@ export function loadIbojitchPlayer() {
           }
         });
 
-        resolve(root);
-      },
-      undefined,
-      reject
-    );
-  });
+        return root;
 }

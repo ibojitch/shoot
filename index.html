@@ -12,7 +12,10 @@
   <main id="game" aria-label="横スクロールシューティング">
     <header class="hud"><div class="brand">ORBIT <small>SECTOR 01</small></div><div><small>PLAYER HP</small><span id="hp">● ● ● ● ●</span></div><div><small>SCORE</small><span id="score">000000</span></div><button id="pause" aria-label="一時停止">Ⅱ</button></header>
     <div class="sector">DEEP SPACE / SURVIVAL FLIGHT</div>
-    <section id="overlay" class="overlay"><div class="card"><p class="eyebrow">2.5D SPACE SHOOTER</p><h1 id="title">ORBIT</h1><p id="message">星の回廊を突破せよ。</p><button id="start">START FLIGHT</button><p class="help">WASD / 矢印で移動 · SPACEで射撃<br>タッチ：左スティックで移動 · 右ボタンで射撃<br>横画面推奨 · P / ESCで一時停止</p></div></section>
+    <div id="dialogue" class="dialogue" role="status" aria-live="polite"></div>
+    <div id="enemy-hp" class="enemy-health" hidden><div>うんぽくわっす <span id="enemy-hp-value">256 / 256</span></div><div class="enemy-health-track"><div id="enemy-hp-fill"></div></div></div>
+    <div class="charge-panel"><label for="charge">WAVE CANNON</label><span id="charge-power">CHARGE</span><progress id="charge" max="1500" value="0" aria-label="波動砲チャージ"></progress><small>HOLD → RELEASE</small></div>
+    <section id="overlay" class="overlay"><div class="card"><p class="eyebrow">2.5D SPACE SHOOTER</p><h1 id="title">ORBIT</h1><p id="message">星の回廊を突破せよ。</p><button id="start">START FLIGHT</button><p class="help">WASD / 矢印で移動 · SPACE：短押しで通常弾、長押し→離すと波動砲<br>タッチ：左スティックで移動 · 右ボタン：長押し→離すと波動砲<br>横画面推奨 · P / ESCで一時停止</p></div></section>
     <div id="touch-controls"><div id="stick" aria-label="移動スティック"><div id="knob"></div></div><button id="fire" aria-label="射撃">FIRE</button></div>
     <footer>MOVE <b>WASD / ↑↓←→</b><span>FIRE <b>SPACE</b></span></footer>
   </main>

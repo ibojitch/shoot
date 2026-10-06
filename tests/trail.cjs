@@ -1,0 +1,16 @@
+const fs=require('node:fs');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+const arcs=[],ends=[];let clears=0;
+const context2d={setTransform(){},clearRect(){clears++;},beginPath(){},moveTo(){},lineTo(x,y){ends.push([x,y]);},stroke(){},arc(x,y,radius){arcs.push({x,y,radius});},fill(){}};
+const canvas={setAttribute(){},getContext(){return context2d;}};
+const context=vm.createContext({document:{createElement(){return canvas;}},devicePixelRatio:2,Math});
+vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../waveTrail.js'),'utf8').replace('export class WaveTrail','class WaveTrail')+'\nglobalThis.WaveTrail=WaveTrail;',context);
+const trail=new context.WaveTrail({append(){}});trail.resize(960,540);assert.equal(canvas.width,1440);
+const camera={left:-16,right:16,top:9,bottom:-9};
+const wave={active:true,isWave:true,energy:16,x:0,y:0,vx:30,vy:0,age:.25};
+trail.render([wave],camera);assert.equal(arcs.length,48);assert.ok(arcs.every(p=>p.x<=480));const fullLength=480-ends[0][0];const fullRadius=Math.max(...arcs.map(p=>p.radius));
+arcs.length=ends.length=0;trail.render([{...wave,energy:1}],camera);assert.equal(arcs.length,18);assert.ok(480-ends[0][0]<fullLength);assert.ok(Math.max(...arcs.map(p=>p.radius))<fullRadius);assert.ok(arcs.every(p=>p.radius>=1));
+arcs.length=0;trail.render([wave,{...wave,x:5,energy:1}],camera);assert.equal(arcs.length,66);
+arcs.length=0;trail.render([{...wave,active:false},{...wave,isWave:false},{...wave,energy:0}],camera);assert.equal(arcs.length,0);assert.equal(clears,4);
+console.log('PASS: visible 2D tails, backward direction, residual scaling, independent projectiles, clearing and resize');
