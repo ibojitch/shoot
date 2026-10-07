@@ -22,5 +22,7 @@ export const UNPO_CONFIG = {
   firstSpawnTime: 8,
   spawnInterval: 35,
   score: 2000,
+  deathLine: 'くわっすーぅ！！ぅう……んこ…！！',
+  deathLineDuration: 4,
   lines: ['くわっす！','うんぽ、くわっす！！','くえー、おれのうんぽ！'],
 };

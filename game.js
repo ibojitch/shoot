@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { loadIbojitchPlayer } from './playerModel.js';
 import { WaveTrail } from './waveTrail.js';
 import { loadModel, fitModel } from './modelLoader.js';
-import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-crystal3';
+import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-deathcry';
 import { Sound } from './sound.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -92,7 +92,7 @@ class UI {
   hide(){this.overlay.hidden=true;}
   charge(ms,quick=false){const gauge=document.querySelector('#charge');gauge.value=ms;const power=chargeDamage(ms)+(quick?1:0);document.querySelector('#charge-power').textContent=ms>=1500?`MAX ×${power}`:ms>=200?`×${power}`:'CHARGE';}
   equipment(player){document.querySelector('#equipment').textContent=`W ×${player.wide}  ${player.hasMissile?'M ✓  ':''}${player.quick?'Q ✓  ':''}${player.podCount?`P ×${player.podCount}`:''}`;}
-  say(text){document.querySelector('#dialogue').textContent=text;this.dialogueTime=2;}
+  say(text,duration=2){document.querySelector('#dialogue').textContent=text;this.dialogueTime=duration;}
   tick(dt){this.dialogueTime=Math.max(0,(this.dialogueTime||0)-dt);if(!this.dialogueTime)document.querySelector('#dialogue').textContent='';}
   enemyHealth(enemies,camera){const panel=document.querySelector('#enemy-hp');const enemy=enemies.find(e=>e.isUnpo&&e.active);panel.hidden=!enemy;if(!enemy)return;
     const x=(enemy.x-camera.left)/(camera.right-camera.left)*innerWidth;
@@ -304,6 +304,7 @@ class Game {
     const destroyed=target.hp<=0,isEnemy=!target.isCrystal&&!this.rocks.includes(target);
     if(destroyed&&isEnemy)this.explosion(target.x,target.y,!!target.isUnpo);else if(!destroyed||!target.isCrystal)this.burst(target.x,target.y,bullet.green?0x7dff8c:0x8effff);
     this.audio?.effect(destroyed?(target.isUnpo?'bossExplosion':'explosion'):'hit',spent,target.x);
+    if(destroyed&&target.isUnpo)this.ui.say(UNPO_CONFIG.deathLine,UNPO_CONFIG.deathLineDuration);
     if(target.hp<=0){if(this.rocks.includes(target))this.destroyRock(target);else if(target.isCrystal)target.deactivate('destroyed',this);else{target.deactivate(this);this.score+=target.scoreValue??[100,150,250][target.type];this.ui.update(this.player.hp,this.score);}}
     if(!bullet.isWave||bullet.energy<=0)bullet.deactivate();else{bullet.updateAppearance();}
   }
