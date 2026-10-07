@@ -97,7 +97,8 @@ export class Sound {
   }
   finish() {
     this.playing = false; this.setCharge(0);
-    for (const voice of [...this.voices]) voice.cancel();
+    // Release the voice budget immediately so a busy battle cannot truncate the ending.
+    for (const voice of [...this.voices]) { voice.cancel(); this.voices.delete(voice); }
     this.effect('over');
     document.querySelector('#sound-status').textContent = 'ゲーム終了';
   }
@@ -198,7 +199,23 @@ export class Sound {
         play({frequency:180,endFrequency:48,duration:.48,volume:.32,type:'triangle',cutoff:1100});
         play({noise:true,duration:.25,volume:.18,cutoff:1800}); break;
       case 'pickup': [74,81,86].forEach((midi,i)=>play({time:time+i*.085,frequency:note(midi),duration:.6,volume:.12,pan:pan+(i-1)*.15})); break;
-      case 'over': [62,58,53,50].forEach((midi,i)=>play({time:time+i*.24,frequency:note(midi),duration:1.1,volume:.16,type:'triangle',cutoff:1600})); break;
+      case 'over': {
+        // Repeat a short motif, then resolve to D minor with a lingering final note.
+        const melody = [
+          [74,0,.55], [77,.32,.55], [76,.64,.8],
+          [74,1.12,.55], [77,1.44,.55], [76,1.76,.8],
+          [72,2.24,.75], [70,2.64,.8], [69,3.12,.9], [62,3.68,1.6]
+        ];
+        for(const [midi,offset,duration] of melody)
+          play({time:time+offset,frequency:note(midi),duration,volume:.18,type:'triangle',cutoff:2400,attack:.018,pan:0});
+        const harmony = [[0,46,[58,62,65]], [1.76,45,[57,61,64]], [3.68,38,[53,57,62]]];
+        for(const [offset,bass,chord] of harmony){
+          const duration = offset===3.68 ? 1.6 : 1.9;
+          play({time:time+offset,frequency:note(bass),duration,volume:.15,type:'sine',cutoff:650,attack:.025,pan:0});
+          chord.forEach((midi,i)=>play({time:time+offset,frequency:note(midi),duration,volume:.045,type:'triangle',cutoff:1200,attack:.08,pan:(i-1)*.3}));
+        }
+        break;
+      }
     }
   }
   setCharge(amount) {

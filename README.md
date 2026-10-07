@@ -88,7 +88,9 @@ START FLIGHT / RESUMEを押すとWeb Audioで音声が開始します。外部�
 
 GLB読み込みは共通の `modelLoader.js` を使い、既存自機にも共用します。セリフはUIクラスの `say()` で表示します。
 
-調整は `unpoConfig.js` の `UNPO_CONFIG`：`homingDuration`（秒）、`homingTurnRate`（rad/s）、`projectileSpeed`（ワールド単位/s）、`regenerationDuration`（秒）、`attackInterval`（秒）。生成処理は `Game.spawnUnpo(x=14,y=0)`。
+調整は `unpoConfig.js` の `UNPO_CONFIG`：`homingDuration`（秒）、`homingTurnRate`（初期rad/s）、`homingEasePower`（旋回の減衰指数、初期値2）、`projectileSpeed`（ワールド単位/s）、`regenerationDuration`（秒）、`attackInterval`（秒）。追尾中の旋回速度は時間とともに減衰し、旋回半径が徐々に広がって2秒時点で直進に移ります。生成処理は `Game.spawnUnpo(x=14,y=0)`。
+
+自機の誘導ミサイルは共有Geometryによる8角形の胴体・円錐の先端・尾翼で構成します。後方の橙色と明るい芯の噴射炎は、進行方向に追従し、小さく伸縮します。既存のミサイルプールを使用し、毎フレームのモデル生成はありません。
 
 クリスタルは底面が画面下を向くようZ-upからY-upに補正し、飛行中もその姿勢を保ちます。本体はY軸まわりに約±16度、6秒周期でゆっくり揺れます。調整値は`bodySwayAmplitude`と`bodySwayPeriod`。本体頭上には残りHP / 最大HPとゲージを表示し、撃破後は非表示になります。
 

@@ -2,7 +2,11 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-class Asset { constructor() {} }
+class Asset {
+  constructor(...args){this.args=args;this.children=[];const vector=()=>({x:0,y:0,z:0,set(x,y,z){Object.assign(this,{x,y,z});}});this.position=vector();this.rotation=vector();this.scale=vector();}
+  add(...children){this.children.push(...children);}
+  clear(){this.children=[];}
+}
 const THREE = new Proxy({}, {get:(_,name)=>name==='MathUtils'?{lerp:(a,b,t)=>a+(b-a)*t}:Asset});
 const source=fs.readFileSync(require('node:path').join(__dirname,'../game.js'),'utf8')
   .replace(/^import .*;$/gm,'').split('// Finish loading')[0];
@@ -56,11 +60,14 @@ const crystalOwner={active:true,x:5,y:0,attackTimer:0,socket:{add(){}},mesh:{upd
 const crystalMesh=mesh();
 const crystal=Object.assign(Object.create(UnpoCrystal.prototype),{owner:crystalOwner,scene:{attach(){}},mesh:crystalMesh,materials:[{opacity:1}],isCrystal:true,active:false});
 crystal.hold();assert.equal(crystal.hp,16);assert.equal(crystal.y,UNPO_CONFIG.socketY);assert.equal(crystal.phase,'held');
+assert.equal(crystal.materials[0].depthTest,false);assert.equal(crystal.mesh.renderOrder,10);
 let lines=0;crystal.fire({x:-10,y:0},{say(){lines++;}});assert.equal(lines,1);assert.equal(crystal.phase,'flying');
+assert.equal(crystal.materials[0].depthTest,true);assert.equal(crystal.mesh.renderOrder,0);
 const chaseGame={player:{x:5,y:10},burst(){}};const initialHeading=crystal.heading;crystal.update(.1,chaseGame);assert.ok(Math.abs(crystal.heading-initialHeading)<=UNPO_CONFIG.homingTurnRate*.1+1e-8);
 for(let i=0;i<Math.ceil(UNPO_CONFIG.homingDuration/.1)+1;i++)crystal.update(.1,chaseGame);const frozenVelocity=[crystal.vx,crystal.vy];chaseGame.player={x:-100,y:-100};crystal.update(.1,chaseGame);assert.deepEqual([crystal.vx,crystal.vy],frozenVelocity);
 for(const reason of ['destroyed','player','terrain','offscreen']){
   crystal.deactivate(reason);assert.equal(crystal.phase,'regenerating');assert.equal(crystal.active,false);assert.equal(crystal.materials[0].opacity,0);
+  assert.equal(crystal.materials[0].depthTest,false);assert.equal(crystal.mesh.renderOrder,10);
   crystal.fire(chaseGame.player,{say(){throw Error('Fired while regenerating');}});
   crystal.update(UNPO_CONFIG.regenerationDuration/2,chaseGame);assert.equal(crystal.materials[0].opacity,.5);
   crystal.update(UNPO_CONFIG.regenerationDuration/2,chaseGame);assert.equal(crystal.phase,'held');assert.equal(crystal.hp,16);assert.equal(crystal.active,true);
@@ -69,6 +76,17 @@ game=fixture();game.crystals=[crystal];shot=wave(crystal.x,crystal.y,16);game.hi
 crystalOwner.active=false;crystal.deactivate('owner-dead');assert.equal(crystal.phase,'inactive');assert.equal(crystalMesh.visible,false);
 const boss=Object.assign(Object.create(UnpoEnemy.prototype),{mesh:mesh(),visual:mesh(),crystal:{hold(){},deactivate(){}},isUnpo:true});boss.activate();assert.equal(boss.hp,256);assert.equal(boss.radius,UNPO_CONFIG.bodyRadius);
 console.log('PASS: Unpo HP, independent crystal HP, launch, bounded turn, pursuit cutoff, all regeneration reasons, fade, firing lock and owner cleanup');
+// A far-off target saturates steering, exposing the progressively wider turn radius.
+function crystalTurnAt(age,dt=.1){
+  const probe=Object.assign(Object.create(UnpoCrystal.prototype),{phase:'flying',active:true,owner:{active:true},mesh:mesh(),flightAge:age,x:0,y:0,heading:0,sparkle(){}});
+  probe.updateVelocity();probe.update(dt,{player:{x:0,y:100}});return probe;
+}
+const earlyTurn=crystalTurnAt(0).heading,midTurn=crystalTurnAt(1).heading,lateTurn=crystalTurnAt(1.9).heading;
+assert.ok(earlyTurn>midTurn&&midTurn>lateTurn&&lateTurn>0);
+assert.ok(lateTurn<earlyTurn/100);
+const boundary=crystalTurnAt(1.95,.2),endHeading=boundary.heading,endVelocity=[boundary.vx,boundary.vy];
+boundary.update(.1,{player:{x:0,y:-100}});assert.equal(boundary.heading,endHeading);assert.deepEqual([boundary.vx,boundary.vy],endVelocity);
+console.log('PASS: crystal turn radius widens smoothly, including a frame crossing pursuit end');
 assert.equal(UNPO_CONFIG.homingDuration,2);
 boss.update(.1,{});assert.ok(Math.abs(boss.visual.rotation.y)<=UNPO_CONFIG.bodySwayAmplitude);
 const sway=boss.visual.rotation.y;boss.update(UNPO_CONFIG.bodySwayPeriod,{});assert.ok(Math.abs(boss.visual.rotation.y-sway)<1e-8);
@@ -88,6 +106,13 @@ context.clock=0;const quickInput=Object.assign(Object.create(Input.prototype),{s
 // Shot held for 4 seconds produces three missiles, without requiring key repeat.
 game.player.missileCooldown=0;let missilesFired=0;game.shootMissile=()=>missilesFired++;const held={movement:{x:0,y:0},shotRequests:[],chargeMs:0,firing:true};game.player.update(0,held,game);game.player.update(1,held,game);game.player.update(1,held,game);game.player.update(2,held,game);assert.equal(missilesFired,3);
 const missile=Object.assign(Object.create(Missile.prototype),{mesh:mesh(),aura:{scale:{set(){}}}});const lock={active:true,generation:1,x:0,y:10};missile.activate(0,0,lock,3);assert.equal(missile.vx,12);assert.equal(missile.vy,0);missile.update(.1);assert.ok(Math.abs(missile.heading)<=.4+1e-8);const heading=missile.heading;lock.generation=2;missile.update(.1);assert.equal(missile.heading,heading);
+let flameScale;missile.exhaust={scale:{set(...value){flameScale=value;}}};
+missile.activate(0,0,lock,3);assert.equal(missile.mesh.rotation.z,0);assert.deepEqual(flameScale,[1,1,1]);
+missile.update(.1);assert.equal(missile.mesh.rotation.z,missile.heading);assert.ok(flameScale.every(v=>Number.isFinite(v)&&v>0));assert.equal(missile.radius,.22);assert.equal(missile.damage,1);
+const modelMissile=new Missile(new Asset());modelMissile.activate(0,0,lock,3);
+assert.equal(modelMissile.mesh.children.length,6);assert.equal(modelMissile.exhaust.children.length,2);
+assert.ok(modelMissile.exhaust.position.x<0);assert.equal(modelMissile.mesh.scale.x,1);
+modelMissile.update(.1);assert.ok(Number.isFinite(modelMissile.exhaust.scale.x));modelMissile.deactivate();assert.equal(modelMissile.mesh.visible,false);
 game.enemies=[enemy(9,0),enemy(3,0)];game.rocks=[];game.crystals=[];let selected;game.missiles=[{active:false,activate(x,y,target,radius){selected={target,radius};}}];context.innerWidth=960;game.camera={left:-16,right:16};Game.prototype.shootMissile.call(game,0,0);assert.equal(selected.target,game.enemies[1]);assert.ok(Math.abs(selected.radius-100/30)<1e-8);
 const history=new FlightHistory(0,0);history.record(2,0);history.record(2,2);const following=history.behind(1.3);assert.ok(Math.abs(following.x-2)<1e-6);assert.ok(Math.abs(following.y-.7)<1e-6);
 // Exactly 1/3 threshold, five selectable types, and no drops from medium rocks.

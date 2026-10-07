@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { loadIbojitchPlayer } from './playerModel.js';
 import { WaveTrail } from './waveTrail.js';
 import { loadModel, fitModel } from './modelLoader.js';
-import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-deathcry';
-import { Sound } from './sound.js?v=20261007-charge-growl';
+import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-homing-ease';
+import { Sound } from './sound.js?v=20261007-gameover';
 import { MobileDisplay } from './mobileDisplay.js?v=20261007-landscape';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -46,6 +46,9 @@ const geometry = {
   box: new THREE.BoxGeometry(1, 1, 1),
   orb: new THREE.IcosahedronGeometry(.6, 0),
   bullet: new THREE.SphereGeometry(.14, 6, 4),
+  missileBody: new THREE.CylinderGeometry(.13,.13,.65,8),
+  missileTip: new THREE.ConeGeometry(.13,.3,8),
+  missileFlame: new THREE.ConeGeometry(.17,.75,6),
 };
 const material = {
   hull: new THREE.MeshStandardMaterial({color:0xc9e8ee, metalness:.55, roughness:.35}),
@@ -58,6 +61,8 @@ const material = {
   wave: new THREE.MeshBasicMaterial({color:0x8effff,transparent:true,opacity:.65}),
   quick: new THREE.MeshBasicMaterial({color:0x83ff97}),
   quickAura: new THREE.MeshBasicMaterial({color:0x41ef6a,transparent:true,opacity:.65}),
+  exhaust: new THREE.MeshBasicMaterial({color:0xff751e,transparent:true,opacity:.65,depthWrite:false,blending:THREE.AdditiveBlending}),
+  exhaustCore: new THREE.MeshBasicMaterial({color:0xffe9a2,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending}),
 };
 function part(group, geo, mat, x=0,y=0,z=0,sx=1,sy=1,sz=1) {
   const mesh=new THREE.Mesh(geo,mat); mesh.position.set(x,y,z); mesh.scale.set(sx,sy,sz); group.add(mesh); return mesh;
@@ -140,8 +145,22 @@ class FlightHistory {
 }
 
 class Missile extends Bullet {
-  activate(x,y,target,turnRadius){super.activate(x,y,12,0);this.target=target;this.targetGeneration=target?.generation;this.heading=0;this.turnRadius=turnRadius;this.radius=.22;if(this.core)this.core.material=material.enemyBullet;}
-  update(dt){if(this.target?.active&&this.target.generation===this.targetGeneration){const angle=Math.atan2(this.target.y-this.y,this.target.x-this.x);const delta=Math.atan2(Math.sin(angle-this.heading),Math.cos(angle-this.heading));const turn=12/this.turnRadius*dt;this.heading+=clamp(delta,-turn,turn);}this.vx=Math.cos(this.heading)*12;this.vy=Math.sin(this.heading)*12;super.update(dt);this.mesh.rotation.z=this.heading;}
+  constructor(scene,hostile=false){
+    super(scene,hostile);this.mesh.clear();
+    part(this.mesh,geometry.missileBody,material.hull).rotation.z=-Math.PI/2;
+    part(this.mesh,geometry.missileTip,material.wing,.475).rotation.z=-Math.PI/2;
+    part(this.mesh,geometry.box,material.structure,-.36,0,0,.12,.23,.23);
+    part(this.mesh,geometry.box,material.wing,-.2,0,0,.25,.48,.045);
+    part(this.mesh,geometry.box,material.wing,-.2,0,0,.25,.045,.48);
+    this.exhaust=new THREE.Group();this.exhaust.position.x=-.46;this.mesh.add(this.exhaust);
+    part(this.exhaust,geometry.missileFlame,material.exhaust,-.375).rotation.z=Math.PI/2;
+    part(this.exhaust,geometry.missileFlame,material.exhaustCore,-.23,0,0,.45,.62,.45).rotation.z=Math.PI/2;
+  }
+  updateAppearance(){this.mesh.scale.set(1,1,1);this.radius=.22;}
+  activate(x,y,target,turnRadius){super.activate(x,y,12,0);this.target=target;this.targetGeneration=target?.generation;this.heading=0;this.turnRadius=turnRadius;this.mesh.rotation.z=0;if(this.exhaust)this.exhaust.scale.set(1,1,1);}
+  update(dt){if(this.target?.active&&this.target.generation===this.targetGeneration){const angle=Math.atan2(this.target.y-this.y,this.target.x-this.x);const delta=Math.atan2(Math.sin(angle-this.heading),Math.cos(angle-this.heading));const turn=12/this.turnRadius*dt;this.heading+=clamp(delta,-turn,turn);}this.vx=Math.cos(this.heading)*12;this.vy=Math.sin(this.heading)*12;super.update(dt);this.mesh.rotation.z=this.heading;
+    if(this.exhaust){const pulse=Math.sin(this.age*65);this.exhaust.scale.set(1+pulse*.16,1+pulse*.07,1+pulse*.07);}
+  }
 }
 
 class PowerItem {
@@ -172,8 +191,8 @@ class UnpoCrystal extends Bullet {
     super(scene,true);scene.remove(this.mesh);
     this.mesh=new THREE.Group();this.mesh.add(model);scene.add(this.mesh);
     this.scene=scene;this.owner=owner;this.isCrystal=true;
-    this.materials=[];
-    model.traverse(obj=>{if(obj.isMesh){const source=Array.isArray(obj.material)?obj.material:[obj.material];const copies=source.map(mat=>{const copy=mat.clone();copy.transparent=true;copy.userData={...copy.userData,crystalOpacity:mat.opacity};this.materials.push(copy);return copy;});obj.material=Array.isArray(obj.material)?copies:copies[0];}});
+    this.materials=[];this.modelMeshes=[];
+    model.traverse(obj=>{if(obj.isMesh){this.modelMeshes.push(obj);const source=Array.isArray(obj.material)?obj.material:[obj.material];const copies=source.map(mat=>{const copy=mat.clone();copy.transparent=true;copy.userData={...copy.userData,crystalOpacity:mat.opacity};this.materials.push(copy);return copy;});obj.material=Array.isArray(obj.material)?copies:copies[0];}});
     // Sample actual model vertices once; sparkles follow the surface as it rotates.
     this.surfacePoints=[];this.sparkPosition=new THREE.Vector3();this.surfaceSparkTimer=0;
     this.mesh.updateWorldMatrix(true,true);
@@ -181,6 +200,13 @@ class UnpoCrystal extends Bullet {
     this.deactivate('reset');
   }
   opacity(value){for(const mat of this.materials){mat.opacity=value*(mat.userData?.crystalOpacity??1);mat.depthWrite=mat.opacity>=1;}}
+  foreground(held){
+    // Head ornaments must remain visible over the opaque body during its Y-axis sway.
+    // Restore normal depth testing when launched into the shared playfield.
+    this.mesh.renderOrder=held?10:0;
+    for(const mesh of this.modelMeshes??[])mesh.renderOrder=held?10:0;
+    for(const mat of this.materials)mat.depthTest=!held;
+  }
   sparkle(dt,game,visibility=1){
     if(!this.surfacePoints?.length||visibility<=.05)return;
     this.surfaceSparkTimer-=dt;if(this.surfaceSparkTimer>0)return;
@@ -190,12 +216,13 @@ class UnpoCrystal extends Bullet {
     if(this.sparkPosition.z<0)return; // Camera is on +Z: favor the visible surface.
     game.burst(this.sparkPosition.x,this.sparkPosition.y,UNPO_CONFIG.crystalSparkleColor??0xc79965,{count:1,life:.12,speed:.12,size:.035,growth:3,glow:true,z:this.sparkPosition.z+.025,opacity:visibility});
   }
-  attach(){this.generation=(this.generation??0)+1;this.owner.socket.add(this.mesh);this.mesh.position.set(0,0,0);this.mesh.rotation.set(0,0,0);this.hp=UNPO_CONFIG.crystalHp;this.radius=UNPO_CONFIG.crystalRadius;this.age=1;this.mesh.visible=true;this.syncHeld();}
+  attach(){this.generation=(this.generation??0)+1;this.owner.socket.add(this.mesh);this.foreground(true);this.mesh.position.set(0,0,0);this.mesh.rotation.set(0,0,0);this.hp=UNPO_CONFIG.crystalHp;this.radius=UNPO_CONFIG.crystalRadius;this.age=1;this.mesh.visible=true;this.syncHeld();}
   syncHeld(){this.x=this.owner.x;this.y=this.owner.y+UNPO_CONFIG.socketY;}
   hold(){this.attach();this.phase='held';this.active=true;this.opacity(1);}
   fire(player,ui){
     if(this.phase!=='held')return;
     this.owner.mesh.updateMatrixWorld(true);this.scene.attach(this.mesh);
+    this.foreground(false);
     this.mesh.rotation.set(0,0,0);
     this.syncHeld();this.mesh.position.set(this.x,this.y,0);
     this.heading=Math.atan2(player.y-this.y,player.x-this.x);
@@ -232,9 +259,15 @@ class UnpoCrystal extends Bullet {
     if(this.phase==='held'){this.syncHeld();this.sparkle(dt,game);return;}
     if(this.phase!=='flying')return;
     this.previousX=this.x;this.previousY=this.y;
-    // Split a boundary-crossing frame so steering ends exactly at the configured duration.
+    // Integrate a fading turn rate: radius grows smoothly to infinity at pursuit end.
     const steeringDt=Math.min(dt,Math.max(0,UNPO_CONFIG.homingDuration-this.flightAge));
-    if(steeringDt>0){const desired=Math.atan2(game.player.y-this.y,game.player.x-this.x);const delta=Math.atan2(Math.sin(desired-this.heading),Math.cos(desired-this.heading));this.heading+=clamp(delta,-UNPO_CONFIG.homingTurnRate*steeringDt,UNPO_CONFIG.homingTurnRate*steeringDt);this.updateVelocity();}
+    if(steeringDt>0){
+      const duration=UNPO_CONFIG.homingDuration,power=UNPO_CONFIG.homingEasePower??2;
+      const remaining=clamp(1-this.flightAge/duration,0,1),next=clamp(1-(this.flightAge+steeringDt)/duration,0,1);
+      const turn=UNPO_CONFIG.homingTurnRate*duration/(power+1)*(remaining**(power+1)-next**(power+1));
+      const desired=Math.atan2(game.player.y-this.y,game.player.x-this.x),delta=Math.atan2(Math.sin(desired-this.heading),Math.cos(desired-this.heading));
+      this.heading+=clamp(delta,-turn,turn);this.updateVelocity();
+    }
     this.flightAge+=dt;this.x+=this.vx*dt;this.y+=this.vy*dt;
     const spinRate=Number.isFinite(UNPO_CONFIG.projectileSpinRate)?UNPO_CONFIG.projectileSpinRate:Math.PI*.5;
     this.mesh.rotation.y=(this.flightAge*spinRate)%(Math.PI*2);

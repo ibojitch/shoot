@@ -61,7 +61,17 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../sound.js
   audio.start(false);await audio.unlock();assert.equal(audio.playing,true);
   audio.context.currentTime=100;audio.tick();assert.ok(audio.nextBeat>100);assert.ok(audio.nextBeat<101); // No scheduling backlog.
   for(const s of audio.context.sources)if(s.onended)s.onended();
-  audio.finish();assert.equal(audio.playing,false);assert.equal(audio.voices.size,4);
+  // The ending still plays in full even when the battle has filled the voice budget.
+  for(let i=0;i<context.config.maxVoices;i++)audio.voice({time:100,duration:1});
+  const beforeOver=audio.context.sources.length;
+  audio.finish();assert.equal(audio.playing,false);
+  const overSources=audio.context.sources.slice(beforeOver);
+  assert.equal(overSources.length,22);
+  assert.ok(Math.max(...overSources.map(s=>s.stopped))-audio.context.currentTime>=5.2);
+  assert.ok(overSources.some(s=>s.frequency.value<100)); // Bass supports the melody.
+  assert.ok(audio.voices.size<=context.config.maxVoices);
+  audio.start(); // Restart must cancel the entire cue, including future scheduled notes.
+  assert.ok(overSources.every(s=>s.stopped===audio.context.currentTime));
   const beforeBoss=audio.context.sources.length;
   audio.effect('bossExplosion');
   const bossSources=audio.context.sources.slice(beforeBoss);

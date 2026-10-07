@@ -13,7 +13,7 @@
     <header class="hud"><div class="brand">ORBIT <small>SECTOR 01</small></div><div><small>PLAYER HP</small><span id="hp">● ● ● ● ●</span></div><div><small>SCORE</small><span id="score">000000</span></div><button id="fullscreen" aria-label="全画面・横画面を試す">⛶</button><button id="pause" aria-label="一時停止">Ⅱ</button></header>
     <div class="sector">DEEP SPACE / SURVIVAL FLIGHT</div>
     <div id="dialogue" class="dialogue" role="status" aria-live="polite"></div>
-    <div id="enemy-hp" class="enemy-health" hidden><div>うんぽくわっす <span id="enemy-hp-value">256 / 256</span></div><div class="enemy-health-track"><div id="enemy-hp-fill"></div></div></div>
+    <div id="enemy-hp" class="enemy-health" hidden><div>ウンポク・ワッス <span id="enemy-hp-value">256 / 256</span></div><div class="enemy-health-track"><div id="enemy-hp-fill"></div></div></div>
     <div id="equipment" class="equipment">W ×1</div>
     <details class="sound-controls"><summary>♪ SOUND</summary><div class="sound-panel"><button id="sound-toggle" aria-label="消音の切り替え" aria-pressed="false">SOUND ON</button><label>BGM<input id="music-volume" type="range" min="0" max="100" value="45" aria-label="BGM音量"></label><label>SE<input id="effects-volume" type="range" min="0" max="100" value="70" aria-label="効果音の音量"></label><small id="sound-status">開始操作で音声ON</small></div></details>
     <div class="charge-panel"><label for="charge">WAVE CANNON</label><span id="charge-power">CHARGE</span><progress id="charge" max="1500" value="0" aria-label="波動砲チャージ"></progress><small>HOLD → RELEASE</small></div>
@@ -23,7 +23,7 @@
     <footer>MOVE <b>WASD / ↑↓←→</b><span>FIRE <b>SPACE</b></span></footer>
   </main>
   <script type="module">
-    import('./game.js?v=20261007-input-repeat').catch(error => {
+    import('./game.js?v=20261007-crystal-front').catch(error => {
       console.error(error);
       document.querySelector('#title').textContent = '起動できませんでした';
       document.querySelector('#message').textContent = '通信状態とWebGL対応を確認し、ローカルHTTPサーバーから開いてください。';

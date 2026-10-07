@@ -11,6 +11,7 @@ export const UNPO_CONFIG = {
   bodySwayAmplitude: .28, // Y-axis rotation, radians (about 16 degrees)
   bodySwayPeriod: 6, // seconds per gentle sway
   homingTurnRate: Math.PI * .8, // radians / second
+  homingEasePower: 2, // Turn rate fades as (1 - age / duration)^power; radius grows.
   projectileSpeed: 6,
   regenerationDuration: 2,
   regenerationSpinTurns: 3, // Full Y-axis turns, easing from fast to a complete stop.
