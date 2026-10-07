@@ -1,12 +1,17 @@
 // Procedural soundtrack and effects: no downloads, audio files or build step.
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const note = midi => 440 * 2 ** ((midi - 69) / 12);
-export const SOUND_CONFIG = { bpm: 92, reverbSeconds: 2.4, musicVolume: .45, effectsVolume: .7, maxVoices: 64, chargeVibratoRate: 4.8, chargeVibratoDepth: 24, chargeDrive: 2.2, chargeUnisonDetune: 5 };
+export const SOUND_CONFIG = { bpm: 100, reverbSeconds: 2.4, musicVolume: .45, effectsVolume: .7, maxVoices: 64, chargeVibratoRate: 4.8, chargeVibratoDepth: 24, chargeDrive: 2.2, chargeUnisonDetune: 5 };
 const CHORDS = [[50,57,60,64], [46,53,57,60], [53,60,64,67], [48,55,58,62]];
+const THEMES = {
+  space: {bpm:SOUND_CONFIG.bpm, chords:CHORDS, cutoff:1800, bass:'triangle', melody:[0,2,1,3,2,1,3,1]},
+  fortress: {bpm:116, chords:[[38,45,50,53],[38,46,50,55],[41,48,53,57],[37,44,49,52]], cutoff:1100, bass:'sawtooth', melody:[0,0,2,1,0,3,2,1]},
+  boss: {bpm:136, chords:[[38,45,48,53],[39,46,50,53],[36,43,48,51],[37,44,47,52]], cutoff:2400, bass:'sawtooth', melody:[0,2,3,2,1,3,2,3]},
+};
 
 export class Sound {
   constructor() {
-    this.context = null; this.playing = false; this.voices = new Set(); this.lastEffects = {};
+    this.context = null; this.playing = false; this.voices = new Set(); this.lastEffects = {}; this.scene = 'space';
     this.musicVolume = SOUND_CONFIG.musicVolume; this.effectsVolume = SOUND_CONFIG.effectsVolume; this.muted = false;
     try {
       const saved = JSON.parse(localStorage.getItem('orbitSound') || 'null');
@@ -42,7 +47,7 @@ export class Sound {
     compressor.threshold.value = -18; compressor.knee.value = 18; compressor.ratio.value = 5;
     compressor.attack.value = .004; compressor.release.value = .18;
     this.master.connect(compressor); compressor.connect(c.destination);
-    this.music.connect(this.master); this.effects.connect(this.master);
+    this.musicDuck = this.gain(); this.music.connect(this.musicDuck); this.musicDuck.connect(this.master); this.effects.connect(this.master);
     // One shared, filtered stereo reverb. Its impulse and noise are made once.
     const reverb = c.createConvolver(), impulse = c.createBuffer(2, Math.ceil(c.sampleRate * SOUND_CONFIG.reverbSeconds), c.sampleRate);
     for (let channel = 0; channel < 2; channel++) {
@@ -54,7 +59,7 @@ export class Sound {
     lowpass.type = 'lowpass'; lowpass.frequency.value = 4800;
     this.musicSend = this.gain(.48); this.effectsSend = this.gain(.32);
     // Send after the volume faders, so zero volume also silences the reverb.
-    this.music.connect(this.musicSend); this.effects.connect(this.effectsSend);
+    this.musicDuck.connect(this.musicSend); this.effects.connect(this.effectsSend);
     this.musicSend.connect(reverb); this.effectsSend.connect(reverb);
     reverb.connect(lowpass); lowpass.connect(wet); wet.connect(this.master);
     this.noiseBuffer = c.createBuffer(1, c.sampleRate, c.sampleRate);
@@ -84,6 +89,7 @@ export class Sound {
   }
   start(reset = true) {
     if (reset) { this.step = 0; this.setCharge(0); for (const voice of [...this.voices]) voice.cancel(); }
+    if(this.context&&this.musicDuck){this.musicDuck.gain.cancelScheduledValues(this.context.currentTime);this.musicDuck.gain.setValueAtTime(1,this.context.currentTime);}
     this.playing = true; this.nextBeat = (this.context?.currentTime || 0) + .04;
     // Called directly from START / RESUME to satisfy mobile autoplay rules.
     void this.unlock();
@@ -95,12 +101,29 @@ export class Sound {
     if (this.context) void this.context.suspend().catch(() => {});
     document.querySelector('#sound-status').textContent = '一時停止';
   }
-  finish() {
+  finish(kind = 'over') {
     this.playing = false; this.setCharge(0);
     // Release the voice budget immediately so a busy battle cannot truncate the ending.
     for (const voice of [...this.voices]) { voice.cancel(); this.voices.delete(voice); }
-    this.effect('over');
+    this.effect(kind);
     document.querySelector('#sound-status').textContent = 'ゲーム終了';
+  }
+  setScene(stage, boss) {
+    const next=boss?'boss':stage===2?'fortress':'space';
+    if(this.scene===next)return;
+    this.scene=next;this.step=0;
+    if(this.context){
+      const now=this.context.currentTime;
+      for(const voice of this.voices)if(voice.bus===this.music)voice.release();
+      this.nextBeat=now+.2;
+      if(boss&&this.playing)this.effect('warning');
+    }
+  }
+  duckMusic(amount, duration) {
+    if(!this.musicDuck)return;
+    const now=this.context.currentTime, gain=this.musicDuck.gain;
+    gain.cancelScheduledValues(now);gain.setValueAtTime(gain.value,now);
+    gain.linearRampToValueAtTime(amount,now+.035);gain.setValueAtTime(amount,now+duration*.35);gain.linearRampToValueAtTime(1,now+duration);
   }
   // Each temporary voice disconnects on completion; a hard cap bounds polyphony.
   voice({time, duration, frequency=440, endFrequency, type='sine', volume=.1, bus=this.effects, cutoff=5000, pan=0, attack=.008, noise=false}) {
@@ -115,7 +138,7 @@ export class Sound {
     envelope.gain.linearRampToValueAtTime(volume, time + Math.min(attack, duration / 3));
     envelope.gain.exponentialRampToValueAtTime(.0001, time + duration);
     source.connect(filter); filter.connect(envelope); envelope.connect(stereo); stereo.connect(bus);
-    const voice = {bus,cancel:() => { envelope.gain.cancelScheduledValues(c.currentTime); envelope.gain.setValueAtTime(0, c.currentTime); source.stop(c.currentTime); }};
+    const voice = {bus,release:()=>{envelope.gain.cancelScheduledValues(c.currentTime);envelope.gain.setTargetAtTime(.0001,c.currentTime,.055);source.stop(c.currentTime+.2);},cancel:() => { envelope.gain.cancelScheduledValues(c.currentTime); envelope.gain.setValueAtTime(0, c.currentTime); source.stop(c.currentTime); }};
     this.voices.add(voice);
     source.onended = () => { source.disconnect(); filter.disconnect(); envelope.disconnect(); stereo.disconnect(); this.voices.delete(voice); };
     source.start(time); source.stop(time + duration + .02); return voice;
@@ -125,41 +148,45 @@ export class Sound {
     if (!this.playing || !c || c.state !== 'running' || this.muted || this.musicVolume === 0) return;
     // Short lookahead driven by the existing render loop; never catch up missed bars.
     if (this.nextBeat < c.currentTime - .1) this.nextBeat = c.currentTime + .02;
-    const beat = 60 / SOUND_CONFIG.bpm / 2;
+    const beat = 60 / THEMES[this.scene].bpm / 2;
     while (this.nextBeat < c.currentTime + .12) {
       this.scheduleBeat(this.step++, this.nextBeat, beat); this.nextBeat += beat;
     }
   }
   scheduleBeat(step, time, beat) {
-    const chord = CHORDS[Math.floor(step / 16) % CHORDS.length], position = step % 16;
+    const theme=THEMES[this.scene], intense=this.scene==='boss', industrial=this.scene!=='space';
+    const chord = theme.chords[Math.floor(step / 16) % theme.chords.length], position = step % 16;
     const play = options => this.voice({time, bus:this.music, ...options});
     if (position === 0) {
       chord.forEach((midi,i) => {
         // Slow attack and two detuned layers make the pad breathe in stereo.
-        play({frequency:note(midi+12)*.998,duration:beat*15.5,volume:.032,type:'triangle',attack:.65,cutoff:1600,pan:i%2?.65:-.65});
+        play({frequency:note(midi+12)*.998,duration:beat*15.5,volume:.032,type:'triangle',attack:.65,cutoff:theme.cutoff,pan:i%2?.65:-.65});
         play({frequency:note(midi+12)*1.003,duration:beat*15.5,volume:.025,attack:.8,pan:i%2?-.45:.45});
       });
     }
     if (position % 2 === 0) {
-      play({frequency:note(chord[0]-12+(position===10?7:0)),duration:beat*1.6,volume:.2,cutoff:450,type:'triangle'});
+      play({frequency:note(chord[0]-(industrial?0:12)+(position===10?7:0)),duration:beat*(industrial?.85:1.6),volume:industrial?.11:.2,cutoff:intense?720:450,type:theme.bass});
     }
-    if ([0,6,8,14].includes(position)) play({frequency:140,endFrequency:42,duration:.26,volume:.45,cutoff:800});
+    if ((intense?[0,3,6,8,10,14]:[0,6,8,14]).includes(position)) play({frequency:140,endFrequency:42,duration:.26,volume:.38,cutoff:800});
     if (position===4 || position===12) {
       play({noise:true,duration:.17,volume:.095,cutoff:2700,pan:.08});
       play({frequency:185,endFrequency:95,duration:.13,volume:.12});
     }
     play({noise:true,duration:position%2?.07:.035,volume:position%2?.022:.013,cutoff:7800,pan:position%2?.3:-.3});
     if (position % 2 === 1) {
-      const pitch = chord[[0,2,1,3,2,1,3,1][Math.floor(position/2)]] + 24;
+      const pitch = chord[theme.melody[Math.floor(position/2)]] + 24;
       play({frequency:note(pitch),duration:beat*1.9,volume:.042,attack:.012,cutoff:3200,pan:Math.sin(step*.7)*.55});
       play({time:time+beat*.75,frequency:note(pitch),duration:beat,volume:.014,pan:-.6,cutoff:2200});
     }
+    if(industrial&&position%4===2)play({frequency:note(chord[1]+12),endFrequency:note(chord[1]),type:'square',duration:.08,volume:.018,cutoff:1300,pan:position%8?.35:-.35});
+    // A spacious four-bar lead gives the space theme a recognizable phrase.
+    if(!industrial&&step%4===0){const melody=[74,77,81,76,74,72,69,72,77,81,84,81,79,74,72,69];play({frequency:note(melody[Math.floor(step/4)%melody.length]),duration:beat*3.2,volume:.035,type:'triangle',cutoff:2200,attack:.06});}
   }
   effect(kind, power = 1, x = 0) {
     const c = this.context;
     if (!c || c.state !== 'running' || this.muted || this.effectsVolume === 0) return;
     const time = c.currentTime, pan = clamp(x / 18, -.8, .8);
-    const cooldown = {shot:.065,enemy:.12,hit:.07,explosion:.08}[kind] ?? 0;
+    const cooldown = {shot:.065,enemy:.12,hit:.07,armour:.09,weakpoint:.07,explosion:.08,warning:2}[kind] ?? 0;
     if (time - (this.lastEffects[kind] ?? -Infinity) < cooldown) return;
     this.lastEffects[kind] = time;
     const play = options => this.voice({time,pan,...options});
@@ -172,11 +199,21 @@ export class Sound {
         play({frequency:kind==='missile'?180:330,endFrequency:70,duration:.28,volume:.16}); break;
       case 'wave': {
         const strength = clamp(power/16, .125, 1);
+        this.duckMusic(.72, .65);
         play({frequency:90+strength*65,endFrequency:36,duration:.45+strength*.4,volume:.24+strength*.18});
         play({frequency:900,endFrequency:130,duration:.5,volume:.13,type:'sawtooth',cutoff:1200});
         play({noise:true,duration:.4+strength*.35,volume:.1+strength*.16,cutoff:2600}); break;
       }
       case 'hit': play({noise:true,duration:.085,volume:.09,cutoff:1900}); break;
+      case 'armour':
+        play({frequency:730,endFrequency:310,duration:.09,volume:.075,type:'triangle',cutoff:2400});
+        play({noise:true,duration:.045,volume:.05,cutoff:4200});break;
+      case 'weakpoint':
+        play({frequency:420,endFrequency:170,duration:.14,volume:.11,type:'triangle',cutoff:2400});
+        play({noise:true,duration:.06,volume:.09,cutoff:3000});break;
+      case 'warning':
+        this.duckMusic(.5,1.2);
+        [0,.32].forEach(offset=>play({time:time+offset,frequency:220,endFrequency:165,duration:.28,volume:.09,type:'sawtooth',cutoff:1100}));break;
       case 'explosion':
         // Sharp midrange crack remains audible on phone speakers, followed by a bass thump.
         play({noise:true,duration:.065,volume:.52,cutoff:5200,attack:.002});
@@ -184,6 +221,7 @@ export class Sound {
         play({frequency:220,endFrequency:62,duration:.25,volume:.34,type:'triangle',cutoff:1700,attack:.002});
         play({frequency:105,endFrequency:32,duration:.5,volume:.42,attack:.002}); break;
       case 'bossExplosion':
+        this.duckMusic(.3,2.2);
         // Reserve space for the boss cue even during a busy firefight.
         for(const voice of [...this.voices])if(voice.bus===this.effects){voice.cancel();this.voices.delete(voice);}
         play({noise:true,duration:.1,volume:.75,cutoff:5600,attack:.002});
@@ -199,6 +237,11 @@ export class Sound {
         play({frequency:180,endFrequency:48,duration:.48,volume:.32,type:'triangle',cutoff:1100});
         play({noise:true,duration:.25,volume:.18,cutoff:1800}); break;
       case 'pickup': [74,81,86].forEach((midi,i)=>play({time:time+i*.085,frequency:note(midi),duration:.6,volume:.12,pan:pan+(i-1)*.15})); break;
+      case 'clear': {
+        const melody=[62,66,69,74,78,81,86];
+        melody.forEach((midi,i)=>play({time:time+i*.18,frequency:note(midi),duration:i===6?1.8:.55,volume:.12,type:'triangle',cutoff:3200}));
+        [38,50,57,62,66].forEach((midi,i)=>play({time:time+.9,frequency:note(midi),duration:2.2,volume:.055,attack:.12,pan:(i-2)*.18}));break;
+      }
       case 'over': {
         // Repeat a short motif, then resolve to D minor with a lingering final note.
         const melody = [

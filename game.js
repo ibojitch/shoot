@@ -3,7 +3,8 @@ import { loadIbojitchPlayer } from './playerModel.js';
 import { WaveTrail } from './waveTrail.js';
 import { loadModel, fitModel } from './modelLoader.js';
 import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-orb';
-import { Sound } from './sound.js?v=20261007-gameover';
+import { Sound } from './sound.js?v=20261008-atmosphere';
+import { Scenery } from './scenery.js';
 import { MobileDisplay } from './mobileDisplay.js?v=20261007-landscape';
 import { createPowerIcon } from './powerIcons.js?v=20261007-orb';
 import { Terrain, polygonHitTime } from './terrain.js?v=20261007-rocky';
@@ -121,7 +122,7 @@ class Input {
 }
 
 class UI {
-  constructor(){this.hp=document.querySelector('#hp');this.score=document.querySelector('#score');this.overlay=document.querySelector('#overlay');this.title=document.querySelector('#title');this.message=document.querySelector('#message');this.start=document.querySelector('#start');this.pause=document.querySelector('#pause');this.continueButton=document.querySelector('#continue');}
+  constructor(){this.hp=document.querySelector('#hp');this.score=document.querySelector('#score');this.overlay=document.querySelector('#overlay');this.title=document.querySelector('#title');this.message=document.querySelector('#message');this.start=document.querySelector('#start');this.pause=document.querySelector('#pause');this.continueButton=document.querySelector('#continue');this.debugHud=new URLSearchParams(location.search).get('debugHud')==='1';document.querySelector('#game').classList.toggle('debug-hud',this.debugHud);}
   update(hp,score){this.hp.textContent='● '.repeat(hp)+'○ '.repeat(5-hp);this.score.textContent=String(score).padStart(6,'0');}
   show(title,message,button){if(this.continueButton)this.continueButton.hidden=true;this.title.textContent=title;this.message.textContent=message;this.start.textContent=button;this.overlay.hidden=false;}
   hide(){this.overlay.hidden=true;}
@@ -130,12 +131,10 @@ class UI {
   say(text,duration=2){document.querySelector('#dialogue').textContent=text;this.dialogueTime=duration;}
   tick(dt){this.dialogueTime=Math.max(0,(this.dialogueTime||0)-dt);if(!this.dialogueTime)document.querySelector('#dialogue').textContent='';}
   enemyHealth(enemies,camera){const panel=document.querySelector('#enemy-hp');const enemy=enemies.find(e=>e.isUnpo&&e.active);panel.hidden=!enemy;panel.style.opacity=String(1-(this.fadeAmount??0));if(!enemy)return;
-    const x=(enemy.x-camera.left)/(camera.right-camera.left)*innerWidth;
-    const y=(camera.top-enemy.y-UNPO_CONFIG.socketY-1)/(camera.top-camera.bottom)*innerHeight;
-    panel.style.left=`${clamp(x,95,innerWidth-95)}px`;panel.style.top=`${Math.max(12,y)}px`;
     const maxHp=enemy.maxHp??UNPO_CONFIG.maxHp;
     if(panel.dataset){panel.dataset.waveTimer=String(enemy.waveTimer??'');panel.dataset.waveCharge=String(enemy.waveCharge??'');}
-    const label=document.querySelector('#enemy-hp-name');if(label)label.textContent=enemy.isStage2Boss?`ウンポク・ワッス / ${enemy.waveCharge>0?'波動砲チャージ':enemy.waveFlash>0?'波動砲 発射':'DREADNOUGHT'}`:'ウンポク・ワッス';
+    const label=document.querySelector('#enemy-hp-name');if(label)label.textContent=enemy.isStage2Boss?'DREADNOUGHT / ウンポク・ワッス':'ウンポク・ワッス';
+    const status=document.querySelector('#enemy-hp-status');if(status)status.textContent=enemy.isStage2Boss?(enemy.waveCharge>0?'波動砲チャージ':enemy.waveFlash>0?'波動砲 発射':'巡航'):enemy.hp<=UNPO_CONFIG.rageHp?'RAGE':'ACTIVE';
     document.querySelector('#enemy-hp-value').textContent=`${enemy.hp} / ${maxHp}`;
     document.querySelector('#enemy-hp-fill').style.width=`${clamp(enemy.hp/maxHp,0,1)*100}%`;
   }
@@ -533,10 +532,7 @@ class Game {
   resize(){const w=innerWidth,h=innerHeight,aspect=w/h; // Fit the entire gameplay rectangle, including portrait screens.
     const width=Math.max(WORLD.width,WORLD.height*aspect),height=width/aspect;
     Object.assign(this.camera,{left:-width/2,right:width/2,top:height/2,bottom:-height/2});this.camera.updateProjectionMatrix();this.renderer.setSize(w,h);this.waveTrail.resize(w,h);}
-  makeBackground(){this.layers=[];for(let layer=0;layer<3;layer++){const positions=new Float32Array(120*3);for(let i=0;i<120;i++){positions[i*3]=(Math.random()-.5)*90;positions[i*3+1]=(Math.random()-.5)*65;positions[i*3+2]=-8-layer*12;}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));const points=new THREE.Points(geo,new THREE.PointsMaterial({color:[0x72bccb,0x627695,0x3b526c][layer],size:.08+layer*.03}));this.scene.add(points);this.layers.push({points,speed:2/(layer+1)});}
-    this.structures=[];for(let i=0;i<18;i++){const mesh=new THREE.Mesh(geometry.orb,material.structure);mesh.position.set(i*5-42,(i%2?1:-1)*(10+Math.random()*4),-7-Math.random()*12);mesh.scale.set(2+Math.random()*3,3+Math.random()*3,2+Math.random()*3);mesh.rotation.set(Math.random(),Math.random(),Math.random());this.scene.add(mesh);this.structures.push(mesh);}
-    const grid=new THREE.GridHelper(100,35,0x23536b,0x142e43);grid.position.set(0,-12,-22);this.scene.add(grid);
-  }
+  makeBackground(){this.scenery=new Scenery(this.scene,this.terrain.walls);}
   makeEffects(){this.effects=Array.from({length:128},()=>{const mesh=new THREE.Mesh(geometry.orb,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,depthWrite:false}));mesh.visible=false;this.scene.add(mesh);return {mesh,life:0};});this.explosionWaves=[];}
   burst(x,y,color,options={}){for(let i=0;i<(options.count??8);i++){let e=this.effects.find(e=>e.life<=0);if(!e&&options.priority)e=this.effects.reduce((a,b)=>a.life<b.life?a:b);if(!e)break;
     e.life=(options.life??.4)+Math.random()*.2;e.duration=e.life;e.drag=options.drag??0;e.growth=options.growth??0;e.mesh.visible=true;e.mesh.material.color.setHex(color);e.peakOpacity=options.opacity??1;e.mesh.material.opacity=e.peakOpacity;e.mesh.material.blending=options.glow?THREE.AdditiveBlending:THREE.NormalBlending;e.mesh.position.set(x,y,options.z??(options.glow?.4:0));
@@ -591,17 +587,17 @@ class Game {
   destroyRock(rock){this.dropPowerUp(rock);this.burst(rock.x,rock.y,0xd4b698);if(rock.size==='large'){const children=this.rocks.filter(r=>!r.active).slice(0,2);const speed=Math.hypot(rock.vx,rock.vy)||1;for(let i=0;i<children.length;i++){const side=i===0?-1:1;const velocity=splitVelocity(rock.vx,rock.vy,side);children[i].activate(rock.x-rock.vy/speed*side*.9,rock.y+rock.vx/speed*side*.9,'medium',velocity.vx,velocity.vy);}}rock.deactivate();this.score+=rock.size==='large'?100:50;this.ui.update(this.player.hp,this.score);}
   hitTarget(bullet,target){
     const available=bullet.energy??bullet.damage??1;
-    if(target.isArmour){this.damageTarget(target.owner,Math.floor(available/2));this.burst(bullet.x,bullet.y,0xffb957,{count:5,glow:true});bullet.energy=0;bullet.damage=0;bullet.deactivate();return;}
+    if(target.isArmour){this.damageTarget(target.owner,Math.floor(available/2),0x8effff,'armour');this.burst(bullet.x,bullet.y,0xffb957,{count:5,glow:true});bullet.energy=0;bullet.damage=0;bullet.deactivate();return;}
     const spent=this.damageTarget(target,available,bullet.green?0x7dff8c:0x8effff);
     bullet.energy=available-spent;bullet.damage=bullet.energy;
     if(!bullet.isWave||bullet.energy<=0)bullet.deactivate();else{bullet.updateAppearance();}
   }
-  damageTarget(target,damage,color=0x8effff){
+  damageTarget(target,damage,color=0x8effff,soundKind=null){
     if(!target.active||target.hp<=0)return 0;
     const spent=Math.min(damage,target.hp);target.hp-=spent;
     const destroyed=target.hp<=0,isEnemy=!target.isCrystal&&!this.rocks.includes(target);
     if(destroyed&&isEnemy)this.explosion(target.x,target.y,!!target.isUnpo);else if(!destroyed||!target.isCrystal)this.burst(target.x,target.y,color);
-    this.audio?.effect(destroyed?(target.isUnpo?'bossExplosion':'explosion'):'hit',spent,target.x);
+    this.audio?.effect(destroyed?(target.isUnpo?'bossExplosion':'explosion'):(soundKind??(target.isUnpo?'weakpoint':'hit')),spent,target.x);
     if(destroyed&&target.isUnpo)this.ui.say(UNPO_CONFIG.deathLine,UNPO_CONFIG.deathLineDuration);
     if(target.hp<=0){if(this.rocks.includes(target))this.destroyRock(target);else if(target.isCrystal){this.dropOrb(target);target.deactivate('destroyed',this);}else{if(target.isTurret)this.dropTurretItem(target);target.deactivate(this);this.score+=target.scoreValue??[100,150,250][target.type];this.ui.update(this.player.hp,this.score);}}
     if(destroyed&&target.isUnpo&&this.stage)this.transition={phase:'delay',time:0,nextStage:target.isStage2Boss?null:2};
@@ -622,10 +618,10 @@ class Game {
   updateTransition(dt){const t=this.transition;t.time+=dt;if(t.phase==='delay'){if(t.time<STAGE_CONFIG.clearDelay)return false;t.phase='out';t.time=0;this.transitionShield=true;this.player.invulnerable=0;this.player.mesh.visible=true;this.input.clear();this.audio?.setCharge(0);this.ui.charge(0);}
     this.ui.tick?.(dt);this.player.history?.record(this.player.x,this.player.y);this.updatePods?.();this.orb?.update(dt,this);
     this.fadeAmount=t.phase==='out'?Math.min(1,t.time/STAGE_CONFIG.fadeDuration):Math.max(0,1-t.time/STAGE_CONFIG.fadeDuration);
-    if(t.time>=STAGE_CONFIG.fadeDuration){if(t.phase==='out'){if(t.nextStage===2){this.beginStage2();t.phase='in';t.time=0;}else{this.clearWorld();this.state='complete';this.audio?.finish();this.input.clear();this.ui.show('MISSION CLEAR',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART');}}else{this.transition=null;this.transitionShield=false;this.fadeAmount=0;}}
+    if(t.time>=STAGE_CONFIG.fadeDuration){if(t.phase==='out'){if(t.nextStage===2){this.beginStage2();t.phase='in';t.time=0;}else{this.clearWorld();this.state='complete';this.audio?.finish('clear');this.input.clear();this.ui.show('MISSION CLEAR',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART');}}else{this.transition=null;this.transitionShield=false;this.fadeAmount=0;}}
     return true;
   }
-  start(){this.stage=1;this.stageScroll=0;this.transition=null;this.transitionShield=false;this.fadeAmount=0;this.terrain?.reset();this.setStageLabel();this.orb?.reset();for(const fog of this.fogs??[])fog.deactivate();this.explosionWaves=[];this.input.clear();for(const entity of [...this.enemies,...this.bullets,...(this.enemyShots??this.enemyBullets),...this.rocks,...(this.crystals??[]),...(this.items??[]),...(this.missiles??[])])entity.deactivate();for(const e of this.effects){e.life=0;e.mesh.visible=false;}this.elapsed=0;this.score=0;this.unpoTimer=UNPO_CONFIG.firstSpawnTime;this.ui.say('');this.rockTimer=3;this.ui.charge(0);this.spawnTimer=.6;this.spawnCount=0;this.player.reset();this.input.chargeMultiplier=1;if(this.pods)this.updatePods();this.state='playing';this.ui.update(5,0);this.ui.hide();this.ui.pause.textContent='Ⅱ';this.audio?.start();void this.mobile?.enter();}
+  start(){this.stage=1;this.stageScroll=0;this.transition=null;this.transitionShield=false;this.fadeAmount=0;this.terrain?.reset();this.setStageLabel();this.orb?.reset();for(const fog of this.fogs??[])fog.deactivate();this.explosionWaves=[];this.input.clear();for(const entity of [...this.enemies,...this.bullets,...(this.enemyShots??this.enemyBullets),...this.rocks,...(this.crystals??[]),...(this.items??[]),...(this.missiles??[])])entity.deactivate();for(const e of this.effects){e.life=0;e.mesh.visible=false;}this.elapsed=0;this.score=0;this.unpoTimer=UNPO_CONFIG.firstSpawnTime;this.ui.say('');this.rockTimer=3;this.ui.charge(0);this.spawnTimer=.6;this.spawnCount=0;this.player.reset();this.input.chargeMultiplier=1;if(this.pods)this.updatePods();this.state='playing';this.ui.update(5,0);this.ui.hide();this.ui.pause.textContent='Ⅱ';this.audio?.setScene?.(1,false);this.audio?.start();void this.mobile?.enter();}
   end(){this.state='over';this.orb?.reset();this.mobile?.stop();this.audio?.finish();this.ui.charge(0);this.player.mesh.visible=false;this.input.clear();this.ui.show('GAME OVER',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART [S]');if(this.ui.continueButton)this.ui.continueButton.hidden=false;}
   togglePause(){if(this.state==='playing'){this.state='paused';this.audio?.pause();this.input.clear();this.ui.charge(0);this.ui.show('PAUSED','ひと休みして、再び宇宙へ。','RESUME');this.ui.pause.textContent='▶';}else if(this.state==='paused')this.resume();}
   resume(){this.input.clear();this.state='playing';this.ui.hide();this.ui.pause.textContent='Ⅱ';this.last=performance.now();this.audio?.start(false);void this.mobile?.enter();}
@@ -676,9 +672,9 @@ class Game {
     if(this.battleship?.active&&Number.isFinite(hitTime(this.player,this.battleship.armour))){this.player.damage(this);if(this.state!=='playing')return;}
     for(const rock of this.rocks)if(rock.active&&overlap(rock,this.player)){this.player.damage(this);if(this.state!=='playing')return;}
   }
-  animateBackground(dt){for(const layer of this.layers){const p=layer.points.geometry.attributes.position;for(let i=0;i<p.count;i++){p.array[i*3]-=layer.speed*dt;if(p.array[i*3]<-45)p.array[i*3]=45;}p.needsUpdate=true;}for(const mesh of this.structures){mesh.position.x-=2.5*dt;mesh.rotation.x+=dt*.04;if(mesh.position.x<-48)mesh.position.x=48;}}
+  animateBackground(dt){this.scenery?.update(dt,this.stage,this.stageScroll);}
   renderScene(){this.renderer.clear();this.camera.layers.set(0);this.renderer.render(this.scene,this.camera);if(this.fadeAmount>0){this.fadeMaterial.opacity=this.fadeAmount;this.renderer.render(this.fadeScene,this.fadeCamera);}this.renderer.clearDepth();this.camera.layers.set(1);const background=this.scene.background;this.scene.background=null;this.renderer.render(this.scene,this.camera);this.scene.background=background;this.camera.layers.set(0);}
-  frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.audio?.tick();if(this.state==='playing'&&!this.mobile?.blocked)this.update(dt);if(this.state!=='paused'&&!this.mobile?.blocked){this.animateBackground(dt);this.updateEffects(dt);}this.renderScene();this.waveTrail.canvas.style.opacity=String(1-this.fadeAmount);this.waveTrail.render(this.bullets,this.camera);this.ui.fadeAmount=this.fadeAmount;this.ui.enemyHealth(this.enemies,this.camera);this.ui.equipment(this.player,this.debugInvincible);requestAnimationFrame(this.frame);}
+  frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.audio?.setScene(this.stage,this.enemies.some(enemy=>enemy.isUnpo&&enemy.active));this.audio?.tick();if(this.state==='playing'&&!this.mobile?.blocked)this.update(dt);if(this.state!=='paused'&&!this.mobile?.blocked){this.animateBackground(dt);this.updateEffects(dt);}this.renderScene();this.waveTrail.canvas.style.opacity=String(1-this.fadeAmount);this.waveTrail.render(this.bullets,this.camera);this.ui.fadeAmount=this.fadeAmount;this.ui.enemyHealth(this.enemies,this.camera);this.ui.equipment(this.player,this.debugInvincible);requestAnimationFrame(this.frame);}
 }
 
 // Finish loading before enabling play; startup errors reach index.html's error screen.

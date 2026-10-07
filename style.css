@@ -27,3 +27,26 @@
 #continue[hidden]{display:none}#continue{margin-left:12px;background:#ffdc70;color:#192333}.brand{letter-spacing:.12em}footer .copyright{margin-left:auto}.mobile-copyright{display:none;position:absolute;right:16px;bottom:8px;z-index:3;font-size:9px;color:#8297b4;pointer-events:none}@media(pointer:coarse){.mobile-copyright{display:block}}@media(max-width:600px){.brand{font-size:12px;letter-spacing:.04em;max-width:85px;line-height:1.2}.card button{padding:12px 18px}#continue{margin-left:6px}}
 
 .title-copyright{font-size:11px;color:#8297b4;letter-spacing:.08em;margin:16px 0 0}
+
+/* Original SF typography and panels; uses system fonts, no downloaded assets. */
+.overlay{background:linear-gradient(110deg,#020611dc,#07112050 55%,#08081580);backdrop-filter:none}
+.card{position:relative;max-width:850px;width:100%;padding:38px 24px}
+.card::before{content:"";position:absolute;left:10%;right:10%;top:25%;height:2px;transform:rotate(-12deg);background:linear-gradient(90deg,transparent,#7477ec88,#b9f6ff,transparent);box-shadow:0 0 35px 8px #6558cc33;pointer-events:none}
+.eyebrow{position:relative;font-size:10px;letter-spacing:.38em;color:#95bcc9}
+.title-logo{position:relative;font-family:"Arial Black","Segoe UI",sans-serif;font-style:italic;font-weight:950;font-size:clamp(36px,8.3vw,100px);letter-spacing:-.045em;line-height:1.05;white-space:nowrap;margin:22px 0;background:linear-gradient(178deg,#fff 5%,#e1f7ff 27%,#7497b0 49%,#263c58 51%,#91b8ce 72%,#e5f9ff 95%);background-clip:text;-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #162738) drop-shadow(0 0 20px #5497bc44)}
+#message{position:relative;letter-spacing:.18em;font-size:14px;color:#c2d3e4}
+.card button{position:relative;background:linear-gradient(135deg,#c0ffff,#59bccd);border:1px solid #d8ffff88;box-shadow:0 0 26px #45d1e322,inset 0 0 12px #efffff44;letter-spacing:.12em;border-radius:2px;transition:filter .18s,box-shadow .18s}
+.card button:hover{filter:brightness(1.15);box-shadow:0 0 30px #45d1e344}
+.help{color:#9baec5}.title-copyright{margin-top:26px;color:#768da9}
+.enemy-health{left:50%;top:max(78px,calc(env(safe-area-inset-top) + 65px));width:clamp(240px,42vw,580px);transform:translateX(-50%);padding:9px 14px 12px;border:1px solid #b7905b55;border-top:2px solid #caa16d;background:linear-gradient(100deg,#081019ed,#151a27e8);border-radius:2px;box-shadow:0 4px 22px #0005;color:#eedac3;font-size:12px;letter-spacing:.08em}
+.enemy-health>div:first-child{display:flex;gap:10px;align-items:center;min-height:17px;margin-bottom:7px}
+.enemy-health #enemy-hp-name{float:none;flex:1;font-size:11px;letter-spacing:.08em;line-height:1.4}
+.enemy-health .boss-debug{display:none;font-size:10px;letter-spacing:0;float:none;white-space:nowrap}
+.debug-hud .enemy-health .boss-debug{display:inline}
+.enemy-health-track{height:14px;margin:0;background:#03090d;border:1px solid #637e8b66;border-radius:1px;overflow:hidden}
+#enemy-hp-fill{height:100%;background:repeating-linear-gradient(90deg,transparent 0 27px,#0b192b77 27px 29px),linear-gradient(180deg,#e7faec,#6bccb8 45%,#328a8c);box-shadow:0 0 12px #76dfd366}
+.dialogue{top:auto;bottom:18%;border-radius:2px;border-color:#73899c66;border-left:3px solid #83c1c9;background:#09131ee8;font-size:13px;box-shadow:0 5px 24px #0005}
+@media(max-height:500px){.enemy-health{top:max(70px,calc(env(safe-area-inset-top) + 63px));width:38%;min-width:255px;padding:5px 10px 7px}.enemy-health>div:first-child{margin-bottom:4px;min-height:14px}.enemy-health-track{height:11px}.card{padding:12px}.title-logo{font-size:clamp(32px,8vw,72px);margin:10px 0}.eyebrow{margin:5px 0}.title-copyright{margin-top:12px}.dialogue{bottom:17%;padding:6px 12px}.help{font-size:10px}}
+@media(max-width:600px) and (min-height:501px){.enemy-health{top:145px;width:86%}.title-logo{font-size:clamp(30px,8.3vw,50px)}.card{padding:20px 0}.eyebrow{letter-spacing:.16em}.enemy-health #enemy-hp-name{font-size:10px}}
+
+.debug-hud .enemy-health>div:first-child{flex-wrap:wrap}.debug-hud #enemy-hp-name{flex-basis:100%}

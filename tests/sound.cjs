@@ -77,6 +77,20 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../sound.js
   const bossSources=audio.context.sources.slice(beforeBoss);
   assert.equal(bossSources.length,14);assert.ok(bossSources.some(s=>s.started>=audio.context.currentTime+.8));
   assert.ok(bossSources.some(s=>s.stopped>=audio.context.currentTime+1.9));
+  // Scene changes preserve settings and release only music, never charge/effects.
+  for(const s of audio.context.sources)if(s.onended)s.onended();
+  audio.start();await audio.unlock();audio.setCharge(.6);const sceneCharge=audio.charge;
+  audio.setScene(2,false);assert.equal(audio.scene,'fortress');assert.equal(audio.charge,sceneCharge);
+  assert.equal(audio.step,0);const scheduleTime=audio.nextBeat;audio.setScene(2,false);assert.equal(audio.nextBeat,scheduleTime);
+  audio.context.currentTime+=.2;audio.tick();assert.ok(audio.step>0);
+  audio.setScene(2,true);assert.equal(audio.scene,'boss');assert.equal(audio.charge,sceneCharge);
+  assert.ok(audio.musicDuck.gain.events.some(event=>event[1]===.5));
+  for(const kind of ['armour','weakpoint'])audio.effect(kind,1,0);
+  audio.pause();audio.setScene(1,false);assert.equal(audio.context.state,'suspended');assert.equal(audio.playing,false);
+  audio.start(false);await audio.unlock();assert.equal(audio.scene,'space');assert.equal(audio.musicDuck.gain.value,1);
+  audio.finish('clear');assert.equal(audio.playing,false);assert.equal(audio.charge,null);
+  assert.ok(audio.voices.size<=context.config.maxVoices);
+  console.log('PASS: stage/boss music switching, same-scene stability, charge preservation, ducking, pause, clear cue and restart');
   // Missing Web Audio is a graceful audio-only failure.
   context.AudioContext=undefined;const unsupported=new context.Sound();unsupported.start();await unsupported.unlock();assert.equal(unsupported.context,null);
   console.log('PASS: gesture startup, music scheduling, all effects, charge cleanup, mute, voice cap, pause/resume, game over and unsupported browsers');
