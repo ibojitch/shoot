@@ -118,22 +118,28 @@ def duck():
     m.save('kuwassu_unpo_character.glb')
 
 def crystal():
-    m=Model(); amber=m.material('Faceted golden amber', (1,1,1),.18,.35,emissive=(.10,.035,.003))
+    m=Model(); amber=m.material('Translucent faceted amber', (1,1,1),.10,.08,emissive=(.08,.026,.002))
+    m.doc['materials'][amber]['pbrMetallicRoughness']['baseColorFactor'][3]=.78
+    m.doc['materials'][amber].update(alphaMode='BLEND',doubleSided=True)
     points=[];normals=[];colors=[];random.seed(42)
-    path=[];steps=64;sides=9
+    path=[];steps=48;sides=6
+    def angle(t):
+        # Add half a turn below the shoulder; the upper curl keeps its old path.
+        u=min(1,t/.72);smooth=u*u*(3-2*u)
+        return (t*2.65-.5*(1-smooth))*math.tau
     # Broad coiled base tapering into a curled tip, rather than a cone.
     for i in range(steps+1):
-        t=i/steps;a=t*math.tau*2.65
+        t=i/steps;a=angle(t)
         r=.65*(1-t)**.8
         path.append((r*math.cos(a),.23+1.55*t,r*.72*math.sin(a)))
     rings=[]
     for i,(x,y,z) in enumerate(path):
-        t=i/steps;a=t*math.tau*2.65;tube=.29*(1-t)**.65+.012
+        t=i/steps;a=angle(t);tube=.29*(1-t)**.65+.012-.06*max(0,1-t/.72)**2
         rings.append([(x+math.cos(a)*math.cos(j*math.tau/sides)*tube,y+math.sin(j*math.tau/sides)*tube,z+math.sin(a)*math.cos(j*math.tau/sides)*tube) for j in range(sides)])
     def triangle(vertices):
         a,b,c=vertices;u=[b[k]-a[k] for k in range(3)];v=[c[k]-a[k] for k in range(3)]
         n=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]);length=math.sqrt(sum(q*q for q in n)) or 1
-        shade=random.choice([(1,.53,.13),(.65,.23,.035),(1,.75,.36),(.86,.36,.08),(1,.9,.62),(.95,.64,.39)])
+        shade=random.choice([(1,.62,.24),(.72,.32,.09),(1,.8,.48),(.92,.45,.16),(1,.94,.76),(.98,.72,.48)])
         for p in vertices:
             points.append((p[0],-p[2],p[1]));normals.append((n[0]/length,-n[2]/length,n[1]/length));colors.append(shade)
     for i in range(steps):

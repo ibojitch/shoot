@@ -26,4 +26,10 @@ for name in ('kuwassu_unpo_character.glb','crystal_unpo_projectile.glb'):
                 view=doc['bufferViews'][doc['accessors'][attribute]['bufferView']]
                 assert view.get('byteOffset',0)+view['byteLength']<=len(binary)
     assert triangles<25000
+    if name=='crystal_unpo_projectile.glb':
+        assert triangles==588
+        mat=doc['materials'][0]
+        assert mat['alphaMode']=='BLEND' and mat['doubleSided']
+        assert mat['pbrMetallicRoughness']['baseColorFactor'][3]==.78
+        assert mat['pbrMetallicRoughness']['roughnessFactor']<=.12
     print(f'PASS: {name}: {triangles} triangles, embedded geometry/materials, valid GLB')

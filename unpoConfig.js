@@ -13,6 +13,11 @@ export const UNPO_CONFIG = {
   homingTurnRate: Math.PI * .8, // radians / second
   projectileSpeed: 6,
   regenerationDuration: 2,
+  regenerationSpinTurns: 3, // Full Y-axis turns, easing from fast to a complete stop.
+  projectileSpinRate: Math.PI * .5, // radians / second (one turn every four seconds)
+  crystalParticleColor: 0x8a4f25,
+  crystalSparkleColor: 0xc79965,
+  crystalSparkleInterval: .22,
   attackInterval: 2,
   firstSpawnTime: 8,
   spawnInterval: 35,

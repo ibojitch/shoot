@@ -5,3 +5,14 @@
 .wave-trails{position:absolute;inset:0;z-index:1;pointer-events:none;width:100%;height:100%}
 .dialogue{position:absolute;z-index:2;top:22%;left:50%;transform:translateX(-50%);max-width:85%;padding:10px 18px;color:#ffda93;background:#1c1723dd;border:1px solid #b88646;border-radius:12px;text-align:center;pointer-events:none}.dialogue:empty{display:none}
 .enemy-health{position:absolute;z-index:2;width:180px;transform:translate(-50%,-100%);font-size:10px;color:#ffe4ad;pointer-events:none;text-shadow:0 1px 3px #000}.enemy-health[hidden]{display:none}.enemy-health span{float:right;font-variant-numeric:tabular-nums}.enemy-health-track{height:7px;margin-top:5px;background:#201b29;border:1px solid #b67f46;border-radius:4px;overflow:hidden}#enemy-hp-fill{height:100%;width:100%;background:linear-gradient(90deg,#d78342,#ffe299)}
+.equipment{position:absolute;left:24px;top:174px;z-index:2;font-size:11px;color:#b4dce4;pointer-events:none;max-width:75%;line-height:1.6}@media(max-width:600px){.equipment{left:14px;top:148px}}@media(max-height:460px){.equipment{top:125px}}
+.sound-controls{position:absolute;z-index:5;right:max(24px,env(safe-area-inset-right));top:86px;font-size:11px;color:#b4dce4}
+.sound-controls summary{cursor:pointer;padding:10px 14px;background:#12283ddd;border:1px solid #476781;border-radius:6px;list-style:none}
+.sound-controls summary::-webkit-details-marker{display:none}
+.sound-panel{width:190px;margin-top:6px;padding:14px;background:#0b192ded;border:1px solid #476781;border-radius:8px;box-shadow:0 6px 28px #0008}
+.sound-panel button{width:100%;padding:10px;font-size:11px;margin-bottom:12px}
+.sound-panel label{display:flex;align-items:center;gap:12px;margin:6px 0;min-height:32px}
+.sound-panel input{width:122px;accent-color:#69eee0;touch-action:pan-x}
+.sound-panel small{display:block;color:#8297b4;margin-top:8px}
+@media(max-width:600px){.sound-controls{right:14px;top:64px}}
+@media(max-height:460px){.sound-controls{top:62px}.sound-panel{padding:9px}.sound-panel label{min-height:26px}.sound-panel button{margin-bottom:4px;padding:8px}}

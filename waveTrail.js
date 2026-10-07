@@ -30,7 +30,7 @@ export class WaveTrail {
       const width=Math.max(2,(.08+power*.22)*scale);
       ctx.lineCap='round';
       for(let layer=3;layer>=1;layer--) {
-        ctx.strokeStyle=`rgba(70,235,255,${.10/layer})`;
+        ctx.strokeStyle=`rgba(${bullet.green?'65,255,115':'70,235,255'},${.10/layer})`;
         ctx.lineWidth=width*layer*2;
         ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-dx*length,y-dy*length);ctx.stroke();
       }
@@ -40,9 +40,9 @@ export class WaveTrail {
         const spread=Math.sin(i*2.4+bullet.age*11)*width*t*2;
         const px=x-dx*t*length-dy*spread,py=y-dy*t*length+dx*spread;
         const radius=Math.max(1,Math.min(6,(1.5+power*3)*(1-t*.7)));
-        ctx.fillStyle=`rgba(100,245,255,${(1-t)*.75})`;
+        ctx.fillStyle=`rgba(${bullet.green?'100,255,140':'100,245,255'},${(1-t)*.75})`;
         ctx.beginPath();ctx.arc(px,py,radius*2,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle=`rgba(220,255,255,${(1-t)*.95})`;
+        ctx.fillStyle=`rgba(${bullet.green?'220,255,225':'220,255,255'},${(1-t)*.95})`;
         ctx.beginPath();ctx.arc(px,py,radius,0,Math.PI*2);ctx.fill();
       }
     }

@@ -14,13 +14,15 @@
     <div class="sector">DEEP SPACE / SURVIVAL FLIGHT</div>
     <div id="dialogue" class="dialogue" role="status" aria-live="polite"></div>
     <div id="enemy-hp" class="enemy-health" hidden><div>うんぽくわっす <span id="enemy-hp-value">256 / 256</span></div><div class="enemy-health-track"><div id="enemy-hp-fill"></div></div></div>
+    <div id="equipment" class="equipment">W ×1</div>
+    <details class="sound-controls"><summary>♪ SOUND</summary><div class="sound-panel"><button id="sound-toggle" aria-label="消音の切り替え" aria-pressed="false">SOUND ON</button><label>BGM<input id="music-volume" type="range" min="0" max="100" value="45" aria-label="BGM音量"></label><label>SE<input id="effects-volume" type="range" min="0" max="100" value="70" aria-label="効果音の音量"></label><small id="sound-status">開始操作で音声ON</small></div></details>
     <div class="charge-panel"><label for="charge">WAVE CANNON</label><span id="charge-power">CHARGE</span><progress id="charge" max="1500" value="0" aria-label="波動砲チャージ"></progress><small>HOLD → RELEASE</small></div>
     <section id="overlay" class="overlay"><div class="card"><p class="eyebrow">2.5D SPACE SHOOTER</p><h1 id="title">ORBIT</h1><p id="message">星の回廊を突破せよ。</p><button id="start">START FLIGHT</button><p class="help">WASD / 矢印で移動 · SPACE：短押しで通常弾、長押し→離すと波動砲<br>タッチ：左スティックで移動 · 右ボタン：長押し→離すと波動砲<br>横画面推奨 · P / ESCで一時停止</p></div></section>
     <div id="touch-controls"><div id="stick" aria-label="移動スティック"><div id="knob"></div></div><button id="fire" aria-label="射撃">FIRE</button></div>
     <footer>MOVE <b>WASD / ↑↓←→</b><span>FIRE <b>SPACE</b></span></footer>
   </main>
   <script type="module">
-    import('./game.js').catch(error => {
+    import('./game.js?v=20261007-crystal3').catch(error => {
       console.error(error);
       document.querySelector('#title').textContent = '起動できませんでした';
       document.querySelector('#message').textContent = '通信状態とWebGL対応を確認し、ローカルHTTPサーバーから開いてください。';
