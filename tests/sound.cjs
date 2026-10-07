@@ -9,7 +9,7 @@ class Param {
   cancelScheduledValues(){}
 }
 class Node {
-  constructor(){for(const p of ['gain','frequency','pan','threshold','knee','ratio','attack','release'])this[p]=new Param();this.connections=[];}
+  constructor(){for(const p of ['gain','frequency','detune','Q','pan','threshold','knee','ratio','attack','release'])this[p]=new Param();this.connections=[];}
   connect(node){this.connections.push(node);}
   disconnect(){this.disconnected=true;}
   start(t=0){this.started=t;}
@@ -19,6 +19,7 @@ class Context {
   constructor(){this.currentTime=0;this.sampleRate=8000;this.state='suspended';this.destination=new Node();this.sources=[];}
   createGain(){return new Node();} createDynamicsCompressor(){return new Node();}
   createBiquadFilter(){return new Node();} createConvolver(){return new Node();} createStereoPanner(){return new Node();}
+  createWaveShaper(){return new Node();}
   createOscillator(){const n=new Node();this.sources.push(n);return n;}
   createBufferSource(){return this.createOscillator();}
   createBuffer(channels,length){const data=Array.from({length:channels},()=>new Float32Array(length));return{getChannelData:i=>data[i]};}
@@ -34,16 +35,24 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../sound.js
   assert.equal(audio.context.state,'running');assert.ok(audio.context.sources.length>10);
   for(const kind of ['shot','enemy','missile','wave','hit','explosion','damage','pickup'])audio.effect(kind,16,5);
   const count=audio.context.sources.length;audio.effect('shot');assert.equal(audio.context.sources.length,count); // Pods don't multiply the sound.
-  audio.setCharge(.5);const charge=audio.charge;audio.setCharge(1);assert.equal(audio.charge,charge);
-  audio.setCharge(0);assert.equal(audio.charge,null);assert.ok(charge.source.stopped>0);
+  audio.setCharge(.5);const charge=audio.charge;assert.equal(charge.vibratoDepth.gain.value,0);
+  audio.setCharge(1);assert.equal(audio.charge,charge);assert.equal(charge.vibratoDepth.gain.value,context.config.chargeVibratoDepth);assert.equal(charge.vibrato.frequency.value,context.config.chargeVibratoRate);
+  assert.equal(charge.source.type,'sawtooth');assert.equal(charge.unison.type,'sawtooth');assert.equal(charge.bass.type,'square');assert.equal(charge.source.frequency.value,440);assert.equal(charge.bass.frequency.value,220);
+  assert.ok([...charge.drive.curve].every(v=>Number.isFinite(v)&&Math.abs(v)<=1));
+  const sourcesAtMax=audio.context.sources.length;audio.setCharge(1);assert.equal(audio.context.sources.length,sourcesAtMax);
+  audio.setCharge(.9);assert.equal(charge.vibratoDepth.gain.value,0);audio.setCharge(1);
+  audio.setCharge(0);assert.equal(audio.charge,null);assert.ok(charge.source.stopped>0);assert.equal(charge.vibrato.stopped,charge.source.stopped);
+  charge.source.onended();assert.equal(charge.vibrato.disconnected,true);assert.equal(charge.vibratoDepth.disconnected,true);
+  assert.ok(charge.oscillators.every(o=>o.stopped===charge.source.stopped&&o.disconnected));assert.equal(charge.drive.disconnected,true);
   audio.muted=true;audio.applyVolumes();assert.equal(audio.music.gain.value,0);assert.equal(audio.effects.gain.value,0);
-  audio.effect('wave',16);assert.equal(audio.context.sources.length,count+1);
+  audio.effect('wave',16);assert.equal(audio.context.sources.length,count+4);
   audio.muted=false;audio.applyVolumes();
   // Saturated polyphony stays bounded; ended voices disconnect and free slots.
   for(let i=0;i<100;i++)audio.voice({time:0,duration:.2});
   assert.equal(audio.voices.size,context.config.maxVoices);
   const completed=audio.context.sources.find(s=>s.onended);completed.onended();assert.ok(completed.disconnected);assert.equal(audio.voices.size,context.config.maxVoices-1);
-  audio.pause();assert.equal(audio.playing,false);assert.equal(audio.context.state,'suspended');
+  audio.setCharge(1);const pausedCharge=audio.charge;
+  audio.pause();assert.equal(audio.playing,false);assert.equal(audio.context.state,'suspended');assert.equal(audio.charge,null);assert.ok(pausedCharge.oscillators.every(o=>o.stopped>0));
   elements.get('#sound-toggle').onclick();elements.get('#sound-toggle').onclick();
   assert.equal(audio.context.state,'suspended'); // Unmuting while paused must not wake reverb tails.
   assert.ok([...audio.voices].every(v=>typeof v.cancel==='function'));

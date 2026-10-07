@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070d1c">
   <title>ORBIT / 2.5D Shooter</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261007-landscape">
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script>
 </head>
 <body>
   <main id="game" aria-label="横スクロールシューティング">
-    <header class="hud"><div class="brand">ORBIT <small>SECTOR 01</small></div><div><small>PLAYER HP</small><span id="hp">● ● ● ● ●</span></div><div><small>SCORE</small><span id="score">000000</span></div><button id="pause" aria-label="一時停止">Ⅱ</button></header>
+    <header class="hud"><div class="brand">ORBIT <small>SECTOR 01</small></div><div><small>PLAYER HP</small><span id="hp">● ● ● ● ●</span></div><div><small>SCORE</small><span id="score">000000</span></div><button id="fullscreen" aria-label="全画面・横画面を試す">⛶</button><button id="pause" aria-label="一時停止">Ⅱ</button></header>
     <div class="sector">DEEP SPACE / SURVIVAL FLIGHT</div>
     <div id="dialogue" class="dialogue" role="status" aria-live="polite"></div>
     <div id="enemy-hp" class="enemy-health" hidden><div>うんぽくわっす <span id="enemy-hp-value">256 / 256</span></div><div class="enemy-health-track"><div id="enemy-hp-fill"></div></div></div>
@@ -19,10 +19,11 @@
     <div class="charge-panel"><label for="charge">WAVE CANNON</label><span id="charge-power">CHARGE</span><progress id="charge" max="1500" value="0" aria-label="波動砲チャージ"></progress><small>HOLD → RELEASE</small></div>
     <section id="overlay" class="overlay"><div class="card"><p class="eyebrow">2.5D SPACE SHOOTER</p><h1 id="title">ORBIT</h1><p id="message">星の回廊を突破せよ。</p><button id="start">START FLIGHT</button><p class="help">WASD / 矢印で移動 · SPACE：短押しで通常弾、長押し→離すと波動砲<br>タッチ：左スティックで移動 · 右ボタン：長押し→離すと波動砲<br>横画面推奨 · P / ESCで一時停止</p></div></section>
     <div id="touch-controls"><div id="stick" aria-label="移動スティック"><div id="knob"></div></div><button id="fire" aria-label="射撃">FIRE</button></div>
+    <section id="rotate-guide" class="rotate-guide" hidden aria-label="横画面の案内"><div><div class="rotate-icon" aria-hidden="true">↻</div><h2>スマホを横にしてください</h2><p>端末の回転ロックを解除して、横向きで遊んでください。</p><button id="rotate-fullscreen">全画面・横画面を試す</button><p id="rotate-status" role="status"></p><small>横向きになると、この案内は自動で閉じます。</small></div></section>
     <footer>MOVE <b>WASD / ↑↓←→</b><span>FIRE <b>SPACE</b></span></footer>
   </main>
   <script type="module">
-    import('./game.js?v=20261007-deathcry').catch(error => {
+    import('./game.js?v=20261007-input-repeat').catch(error => {
       console.error(error);
       document.querySelector('#title').textContent = '起動できませんでした';
       document.querySelector('#message').textContent = '通信状態とWebGL対応を確認し、ローカルHTTPサーバーから開いてください。';

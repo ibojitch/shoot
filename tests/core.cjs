@@ -163,3 +163,15 @@ crystal.sparkle(.01,sparkleGame,.5);assert.equal(sparkles.length,1);assert.equal
 crystal.sparkle(.01,sparkleGame);assert.equal(sparkles.length,1);
 crystal.sparkle(1,sparkleGame,0);assert.equal(sparkles.length,1);
 console.log('PASS: intrinsic crystal translucency survives regeneration, sparse surface sparkles track model space and fade visibility');
+
+// Exercise the actual keyboard handlers, including repeat after pause/reset clear().
+const keyboard=Object.assign(Object.create(Input.prototype),{keys:new Set(),firePointers:new Set(),shotRequests:[],shotStartedAt:null,stick:{x:0,y:0},knob:{style:{}},fireButton:{classList:{remove(){}}}});
+let prevented=0;const keyEvent=(code,repeat=false)=>({code,repeat,preventDefault(){prevented++;}});
+context.clock=0;keyboard.keyDown(keyEvent('Space'));assert.equal(keyboard.shotRequests.length,1);
+context.clock=500;keyboard.keyDown(keyEvent('Space',true));keyboard.keyDown(keyEvent('Space'));assert.equal(keyboard.shotRequests.length,1);assert.equal(keyboard.shotStartedAt,0);
+context.clock=1500;keyboard.keyUp(keyEvent('Space'));assert.equal(keyboard.shotRequests[1],16);assert.equal(keyboard.firing,false);
+keyboard.keyDown(keyEvent('KeyD'));keyboard.keyDown(keyEvent('KeyD',true));assert.equal(keyboard.movement.x,1);
+keyboard.clear();keyboard.keyDown(keyEvent('KeyD',true));keyboard.keyDown(keyEvent('Space',true));assert.equal(keyboard.movement.x,0);assert.equal(keyboard.firing,false);assert.equal(keyboard.shotRequests.length,0);assert.equal(keyboard.shotStartedAt,null);
+keyboard.keyUp(keyEvent('Space'));assert.equal(keyboard.shotRequests.length,0);
+keyboard.keyDown(keyEvent('Space'));assert.equal(keyboard.shotRequests.length,1);assert.equal(keyboard.firing,true);assert.ok(prevented>=5);
+console.log('PASS: keyboard repeat ignored, hold movement/charge preserved, no phantom presses after clear, release and repress works');

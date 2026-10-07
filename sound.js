@@ -1,7 +1,7 @@
 // Procedural soundtrack and effects: no downloads, audio files or build step.
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const note = midi => 440 * 2 ** ((midi - 69) / 12);
-export const SOUND_CONFIG = { bpm: 92, reverbSeconds: 2.4, musicVolume: .45, effectsVolume: .7, maxVoices: 64 };
+export const SOUND_CONFIG = { bpm: 92, reverbSeconds: 2.4, musicVolume: .45, effectsVolume: .7, maxVoices: 64, chargeVibratoRate: 4.8, chargeVibratoDepth: 24, chargeDrive: 2.2, chargeUnisonDetune: 5 };
 const CHORDS = [[50,57,60,64], [46,53,57,60], [53,60,64,67], [48,55,58,62]];
 
 export class Sound {
@@ -207,22 +207,45 @@ export class Sound {
     amount = clamp(amount, 0, 1);
     if (!amount) {
       if (this.charge) {
-        const {source,envelope} = this.charge;
+        const {oscillators,envelope,vibrato} = this.charge;
         envelope.gain.cancelScheduledValues(c.currentTime);
         envelope.gain.setTargetAtTime(0,c.currentTime,.018);
-        source.stop(c.currentTime+.12); this.charge = null;
+        for(const oscillator of oscillators)oscillator.stop(c.currentTime+.12);
+        vibrato.stop(c.currentTime+.12); this.charge = null;
       }
       return;
     }
     if (!this.playing) return;
+    const startFrequency=110*2/3;
     if (!this.charge) {
       const source = c.createOscillator(), filter = c.createBiquadFilter(), envelope = this.gain(0);
-      source.type='triangle'; filter.type='lowpass'; filter.frequency.value=1600;
-      source.connect(filter); filter.connect(envelope); envelope.connect(this.effects);
-      source.onended=()=>{source.disconnect();filter.disconnect();envelope.disconnect();};
-      source.start(); this.charge={source,envelope};
+      const unison=c.createOscillator(),bass=c.createOscillator(),drive=c.createWaveShaper();
+      const layers=[this.gain(.44),this.gain(.31),this.gain(.40)];
+      const oscillators=[source,unison,bass],bassVibrato=this.gain(.5);
+      // Bounded soft saturation, shared across charges, supplies a rough energy growl.
+      if(!this.chargeDriveCurve){this.chargeDriveCurve=new Float32Array(512);const driveAmount=SOUND_CONFIG.chargeDrive;for(let i=0;i<512;i++){const x=i/511*2-1;this.chargeDriveCurve[i]=Math.tanh(x*driveAmount)/Math.tanh(driveAmount);}}
+      drive.curve=this.chargeDriveCurve;drive.oversample='2x';
+      const vibrato=c.createOscillator(), vibratoDepth=this.gain(0);
+      vibrato.type='sine';vibrato.frequency.value=SOUND_CONFIG.chargeVibratoRate;
+      vibrato.connect(vibratoDepth);vibratoDepth.connect(source.frequency);vibratoDepth.connect(unison.frequency);vibratoDepth.connect(bassVibrato);bassVibrato.connect(bass.frequency);
+      source.type='sawtooth';unison.type='sawtooth';unison.detune.value=SOUND_CONFIG.chargeUnisonDetune;bass.type='square';
+      source.frequency.value=unison.frequency.value=startFrequency;bass.frequency.value=startFrequency/2;
+      filter.type='lowpass';filter.frequency.value=700;filter.Q.value=1.1;
+      oscillators.forEach((oscillator,i)=>{oscillator.connect(layers[i]);layers[i].connect(drive);});
+      drive.connect(filter);filter.connect(envelope);envelope.connect(this.effects);
+      source.onended=()=>{for(const node of [...oscillators,...layers,drive,filter,envelope,vibrato,vibratoDepth,bassVibrato])node.disconnect();};
+      oscillators.forEach(oscillator=>oscillator.start());vibrato.start();this.charge={source,unison,bass,oscillators,drive,envelope,filter,vibrato,vibratoDepth,full:false};
     }
-    this.charge.source.frequency.setTargetAtTime(110+amount*550,c.currentTime,.045);
+    const full=amount>=1;
+    if(full!==this.charge.full){
+      this.charge.full=full;
+      this.charge.vibratoDepth.gain.setTargetAtTime(full?SOUND_CONFIG.chargeVibratoDepth:0,c.currentTime,.1);
+    }
+    const frequency=startFrequency+amount*(440-startFrequency);
+    this.charge.source.frequency.setTargetAtTime(frequency,c.currentTime,.045);
+    this.charge.unison.frequency.setTargetAtTime(frequency,c.currentTime,.045);
+    this.charge.bass.frequency.setTargetAtTime(frequency/2,c.currentTime,.045);
+    this.charge.filter.frequency.setTargetAtTime(700+amount*1200,c.currentTime,.08);
     this.charge.envelope.gain.setTargetAtTime(.025+amount*.07,c.currentTime,.045);
   }
 }

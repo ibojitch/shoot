@@ -3,7 +3,8 @@ import { loadIbojitchPlayer } from './playerModel.js';
 import { WaveTrail } from './waveTrail.js';
 import { loadModel, fitModel } from './modelLoader.js';
 import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-deathcry';
-import { Sound } from './sound.js';
+import { Sound } from './sound.js?v=20261007-charge-growl';
+import { MobileDisplay } from './mobileDisplay.js?v=20261007-landscape';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const overlap = (a, b) => (a.x-b.x)**2 + (a.y-b.y)**2 < (a.radius+b.radius)**2;
@@ -68,8 +69,8 @@ class Input {
     this.shotRequests=[];this.shotStartedAt=null;
     this.chargeMultiplier=1;
     this.pad=document.querySelector('#stick'); this.knob=document.querySelector('#knob'); this.fireButton=document.querySelector('#fire');
-    addEventListener('keydown',e=>{if(e.target.closest?.('.sound-controls'))return;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();const before=this.firing;this.keys.add(e.code);this.shotChanged(before);});
-    addEventListener('keyup',e=>{const before=this.firing;this.keys.delete(e.code);this.shotChanged(before);});
+    addEventListener('keydown',e=>this.keyDown(e));
+    addEventListener('keyup',e=>this.keyUp(e));
     addEventListener('blur',()=>this.clear());
     this.pad.addEventListener('pointerdown',e=>{if(this.stickPointer!==null)return;this.stickPointer=e.pointerId;this.pad.setPointerCapture(e.pointerId);this.moveStick(e);});
     this.pad.addEventListener('pointermove',e=>{if(e.pointerId===this.stickPointer)this.moveStick(e);});
@@ -77,6 +78,14 @@ class Input {
     this.fireButton.addEventListener('pointerdown',e=>{const before=this.firing;this.fireButton.setPointerCapture(e.pointerId);this.firePointers.add(e.pointerId);this.shotChanged(before);this.fireButton.classList.add('active');});
     for(const event of ['pointerup','pointercancel','lostpointercapture'])this.fireButton.addEventListener(event,e=>{const before=this.firing;this.firePointers.delete(e.pointerId);this.shotChanged(before,event!=='pointerup');this.fireButton.classList.toggle('active',this.firePointers.size>0);});
   }
+  keyDown(e){
+    if(e.target?.closest?.('.sound-controls, #fullscreen, #rotate-guide'))return;
+    if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+    // Movement uses held state; OS repeat must never create another press after clear().
+    if(e.repeat||this.keys.has(e.code))return;
+    const before=this.firing;this.keys.add(e.code);this.shotChanged(before);
+  }
+  keyUp(e){const before=this.firing;this.keys.delete(e.code);this.shotChanged(before);}
   moveStick(e){const rect=this.pad.getBoundingClientRect();let x=e.clientX-rect.left-rect.width/2,y=e.clientY-rect.top-rect.height/2;const limit=rect.width*.32,length=Math.hypot(x,y);if(length>limit){x*=limit/length;y*=limit/length;}this.stick.x=x/limit;this.stick.y=-y/limit;this.knob.style.transform=`translate(${x}px,${y}px)`;}
   shotChanged(before,cancel=false){if(!before&&this.firing){this.shotStartedAt=performance.now();this.shotRequests.push(1);}else if(before&&!this.firing){const ms=this.chargeMs;if(!cancel&&ms>=200)this.shotRequests.push(chargeDamage(ms));this.shotStartedAt=null;}}
   get chargeMs(){return this.shotStartedAt===null?0:clamp((performance.now()-this.shotStartedAt)*(this.chargeMultiplier??1),0,1500);}
@@ -251,6 +260,7 @@ class UnpoEnemy extends Enemy {
 class Game {
   constructor(model,unpoModels){
     this.ui=new UI();this.input=new Input();this.audio=new Sound();this.state='ready';this.elapsed=0;this.score=0;
+    this.mobile=new MobileDisplay({onBlocked:()=>{this.input.clear();this.ui.charge(0);this.audio.pause();},onReady:()=>{this.input.clear();if(this.state==='playing')this.audio.start(false);this.last=performance.now();}});
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x070d1c);this.scene.fog=new THREE.Fog(0x070d1c,35,85);
     this.camera=new THREE.OrthographicCamera(-16,16,9,-9,.1,120);this.camera.position.set(0,0,40);this.camera.lookAt(0,0,0);
     this.renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));this.renderer.outputColorSpace=THREE.SRGBColorSpace;document.querySelector('#game').prepend(this.renderer.domElement);
@@ -308,10 +318,10 @@ class Game {
     if(target.hp<=0){if(this.rocks.includes(target))this.destroyRock(target);else if(target.isCrystal)target.deactivate('destroyed',this);else{target.deactivate(this);this.score+=target.scoreValue??[100,150,250][target.type];this.ui.update(this.player.hp,this.score);}}
     if(!bullet.isWave||bullet.energy<=0)bullet.deactivate();else{bullet.updateAppearance();}
   }
-  start(){this.explosionWaves=[];this.input.clear();for(const entity of [...this.enemies,...this.bullets,...this.enemyBullets,...this.rocks,...(this.crystals??[]),...(this.items??[]),...(this.missiles??[])])entity.deactivate();for(const e of this.effects){e.life=0;e.mesh.visible=false;}this.elapsed=0;this.score=0;this.unpoTimer=UNPO_CONFIG.firstSpawnTime;this.ui.say('');this.rockTimer=3;this.ui.charge(0);this.spawnTimer=.6;this.spawnCount=0;this.player.reset();this.input.chargeMultiplier=1;if(this.pods)this.updatePods();this.state='playing';this.ui.update(5,0);this.ui.hide();this.ui.pause.textContent='Ⅱ';this.audio?.start();}
-  end(){this.state='over';this.audio?.finish();this.ui.charge(0);this.player.mesh.visible=false;this.input.clear();this.ui.show('GAME OVER',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART');}
+  start(){this.explosionWaves=[];this.input.clear();for(const entity of [...this.enemies,...this.bullets,...this.enemyBullets,...this.rocks,...(this.crystals??[]),...(this.items??[]),...(this.missiles??[])])entity.deactivate();for(const e of this.effects){e.life=0;e.mesh.visible=false;}this.elapsed=0;this.score=0;this.unpoTimer=UNPO_CONFIG.firstSpawnTime;this.ui.say('');this.rockTimer=3;this.ui.charge(0);this.spawnTimer=.6;this.spawnCount=0;this.player.reset();this.input.chargeMultiplier=1;if(this.pods)this.updatePods();this.state='playing';this.ui.update(5,0);this.ui.hide();this.ui.pause.textContent='Ⅱ';this.audio?.start();void this.mobile?.enter();}
+  end(){this.state='over';this.mobile?.stop();this.audio?.finish();this.ui.charge(0);this.player.mesh.visible=false;this.input.clear();this.ui.show('GAME OVER',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART');}
   togglePause(){if(this.state==='playing'){this.state='paused';this.audio?.pause();this.input.clear();this.ui.charge(0);this.ui.show('PAUSED','ひと休みして、再び宇宙へ。','RESUME');this.ui.pause.textContent='▶';}else if(this.state==='paused')this.resume();}
-  resume(){this.input.clear();this.state='playing';this.ui.hide();this.ui.pause.textContent='Ⅱ';this.last=performance.now();this.audio?.start(false);}
+  resume(){this.input.clear();this.state='playing';this.ui.hide();this.ui.pause.textContent='Ⅱ';this.last=performance.now();this.audio?.start(false);void this.mobile?.enter();}
   update(dt){this.elapsed+=dt;this.player.update(dt,this.input,this);this.spawnTimer-=dt;if(this.spawnTimer<=0){const type=this.spawnCount++%3;const enemy=this.enemies.find(e=>!e.active&&!e.isUnpo&&e.type===type);if(enemy)enemy.activate((Math.random()-.5)*12,this.elapsed,Math.min(3,this.elapsed/45));this.spawnTimer=Math.max(.55,1.3-this.elapsed*.003);}
     for(const enemy of this.enemies)if(enemy.active)enemy.update(dt,this);
     this.ui.tick?.(dt);this.unpoTimer-=dt;
@@ -344,7 +354,7 @@ class Game {
     for(const rock of this.rocks)if(rock.active&&overlap(rock,this.player)){this.player.damage(this);if(this.state!=='playing')return;}
   }
   animateBackground(dt){for(const layer of this.layers){const p=layer.points.geometry.attributes.position;for(let i=0;i<p.count;i++){p.array[i*3]-=layer.speed*dt;if(p.array[i*3]<-45)p.array[i*3]=45;}p.needsUpdate=true;}for(const mesh of this.structures){mesh.position.x-=2.5*dt;mesh.rotation.x+=dt*.04;if(mesh.position.x<-48)mesh.position.x=48;}}
-  frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.audio?.tick();if(this.state==='playing')this.update(dt);if(this.state!=='paused'){this.animateBackground(dt);this.updateEffects(dt);}this.renderer.render(this.scene,this.camera);this.waveTrail.render(this.bullets,this.camera);this.ui.enemyHealth(this.enemies,this.camera);this.ui.equipment(this.player);requestAnimationFrame(this.frame);}
+  frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.audio?.tick();if(this.state==='playing'&&!this.mobile?.blocked)this.update(dt);if(this.state!=='paused'&&!this.mobile?.blocked){this.animateBackground(dt);this.updateEffects(dt);}this.renderer.render(this.scene,this.camera);this.waveTrail.render(this.bullets,this.camera);this.ui.enemyHealth(this.enemies,this.camera);this.ui.equipment(this.player);requestAnimationFrame(this.frame);}
 }
 
 // Finish loading before enabling play; startup errors reach index.html's error screen.

@@ -16,3 +16,10 @@
 .sound-panel small{display:block;color:#8297b4;margin-top:8px}
 @media(max-width:600px){.sound-controls{right:14px;top:64px}}
 @media(max-height:460px){.sound-controls{top:62px}.sound-panel{padding:9px}.sound-panel label{min-height:26px}.sound-panel button{margin-bottom:4px;padding:8px}}
+#fullscreen{display:none;pointer-events:auto;padding:8px 12px;background:#162d43;color:#acd9ec}
+.rotate-guide{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:24px;background:#070d1cf5;text-align:center}
+.rotate-guide[hidden]{display:none}.rotate-guide>div{max-width:360px}.rotate-icon{font-size:64px;color:#69eee0;line-height:1}
+.rotate-guide h2{font-size:22px}.rotate-guide p{font-size:13px;line-height:1.8;color:#b4c5da}.rotate-guide small{color:#8297b4;font-size:11px}
+.rotate-guide button{padding:14px 18px}#rotate-status{min-height:24px}
+@media(pointer:coarse){#fullscreen{display:block}.hud{gap:14px}#game:fullscreen{width:100vw;height:100dvh}}
+@media(pointer:coarse) and (max-width:360px){.hud{gap:7px}#fullscreen{padding:8px}#pause{padding:8px}}
