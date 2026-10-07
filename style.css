@@ -23,3 +23,7 @@
 .rotate-guide button{padding:14px 18px}#rotate-status{min-height:24px}
 @media(pointer:coarse){#fullscreen{display:block}.hud{gap:14px}#game:fullscreen{width:100vw;height:100dvh}}
 @media(pointer:coarse) and (max-width:360px){.hud{gap:7px}#fullscreen{padding:8px}#pause{padding:8px}}
+
+#continue[hidden]{display:none}#continue{margin-left:12px;background:#ffdc70;color:#192333}.brand{letter-spacing:.12em}footer .copyright{margin-left:auto}.mobile-copyright{display:none;position:absolute;right:16px;bottom:8px;z-index:3;font-size:9px;color:#8297b4;pointer-events:none}@media(pointer:coarse){.mobile-copyright{display:block}}@media(max-width:600px){.brand{font-size:12px;letter-spacing:.04em;max-width:85px;line-height:1.2}.card button{padding:12px 18px}#continue{margin-left:6px}}
+
+.title-copyright{font-size:11px;color:#8297b4;letter-spacing:.08em;margin:16px 0 0}

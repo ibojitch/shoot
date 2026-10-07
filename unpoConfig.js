@@ -13,6 +13,17 @@ export const UNPO_CONFIG = {
   homingTurnRate: Math.PI * .8, // radians / second
   homingEasePower: 2, // Turn rate fades as (1 - age / duration)^power; radius grows.
   projectileSpeed: 6,
+  rageHp: 128,
+  rageSpeedMultiplier: 1.5,
+  rageHomingMultiplier: 1.5,
+  rageShotCount: 5,
+  rageSpreadAngle: Math.PI / 4,
+  separationDistance: 1.7, // Repel nearby homing crystals; world units.
+  separationStrength: 1, // Relative to the normalized player-seeking direction.
+  bulletRollInterval: 1,
+  bulletFireChance: .2,
+  bulletSpeed: 8,
+  orbDropChance: .1,
   regenerationDuration: 2,
   regenerationSpinTurns: 3, // Full Y-axis turns, easing from fast to a complete stop.
   projectileSpinRate: Math.PI * .5, // radians / second (one turn every four seconds)
