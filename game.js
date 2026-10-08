@@ -7,7 +7,7 @@ import { Sound } from './sound.js?v=20261008-atmosphere';
 import { Scenery } from './scenery.js';
 import { MobileDisplay } from './mobileDisplay.js?v=20261007-landscape';
 import { createPowerIcon } from './powerIcons.js?v=20261007-orb';
-import { Terrain, polygonHitTime } from './terrain.js?v=20261007-rocky';
+import { Terrain, polygonHitTime } from './terrain.js?v=20261008-missile-terrain';
 import { STAGE2_DATA } from './stage2Data.js';
 import { createBattleship } from './battleshipModel.js';
 
@@ -213,7 +213,13 @@ class Missile extends Bullet {
   }
   updateAppearance(){this.mesh.scale.set(1,1,1);this.radius=.22;}
   activate(x,y,target,turnRadius,heading=0){this.speed=this.hostile?STAGE_CONFIG.enemyMissileSpeed:12;super.activate(x,y,Math.cos(heading)*this.speed,Math.sin(heading)*this.speed,this.hostile?1:MISSILE_DAMAGE);this.isWave=false;this.isEnemyMissile=!!this.hostile;this.hp=this.hostile?1:undefined;this.target=target;this.targetGeneration=target?.generation;this.heading=heading;this.turnRadius=turnRadius;this.mesh.rotation.z=heading;if(this.exhaust)this.exhaust.scale.set(1,1,1);}
-  update(dt){const speed=this.speed??12;const alive=this.hostile?this.target?.hp>0:this.target?.active&&this.target.generation===this.targetGeneration;if(alive){const angle=Math.atan2(this.target.y-this.y,this.target.x-this.x);const delta=Math.atan2(Math.sin(angle-this.heading),Math.cos(angle-this.heading));const turn=speed/this.turnRadius*dt;this.heading+=clamp(delta,-turn,turn);}this.vx=Math.cos(this.heading)*speed;this.vy=Math.sin(this.heading)*speed;super.update(dt);this.mesh.rotation.z=this.heading;
+  update(dt,terrain){const speed=this.speed??12;const alive=this.hostile?this.target?.hp>0:this.target?.active&&this.target.generation===this.targetGeneration;
+    const desired=alive?Math.atan2(this.target.y-this.y,this.target.x-this.x):this.heading;
+    const guided=!this.hostile&&terrain?.active?terrain.missileHeading(this,desired):desired;
+    const delta=Math.atan2(Math.sin(guided-this.heading),Math.cos(guided-this.heading));
+    const avoiding=Math.abs(Math.atan2(Math.sin(guided-desired),Math.cos(guided-desired)))>1e-6;
+    const turn=speed/(avoiding?Math.min(this.turnRadius,1.5):this.turnRadius)*dt;
+    this.heading+=clamp(delta,-turn,turn);this.vx=Math.cos(this.heading)*speed;this.vy=Math.sin(this.heading)*speed;super.update(dt);this.mesh.rotation.z=this.heading;
     if(this.exhaust){const pulse=Math.sin(this.age*65);this.exhaust.scale.set(1+pulse*.16,1+pulse*.07,1+pulse*.07);}
   }
 }
@@ -592,6 +598,12 @@ class Game {
     bullet.energy=available-spent;bullet.damage=bullet.energy;
     if(!bullet.isWave||bullet.energy<=0)bullet.deactivate();else{bullet.updateAppearance();}
   }
+  missileImpact(bullet,time){
+    const x=(bullet.previousX??bullet.x)+(bullet.x-(bullet.previousX??bullet.x))*time;
+    const y=(bullet.previousY??bullet.y)+(bullet.y-(bullet.previousY??bullet.y))*time;
+    this.burst(x,y,0xff9c48,{count:9,life:.35,speed:7,size:.17,glow:true});
+    this.audio?.effect('explosion',1,x);bullet.deactivate();
+  }
   damageTarget(target,damage,color=0x8effff,soundKind=null){
     if(!target.active||target.hp<=0)return 0;
     const spent=Math.min(damage,target.hp);target.hp-=spent;
@@ -647,7 +659,7 @@ class Game {
     for(const fog of this.fogs??[])if(fog.active)fog.update(dt,this);
     for(const bullet of [...this.bullets,...(this.missiles??[])]){
       if(!bullet.active)continue;
-      bullet.update(dt);
+      bullet.update(dt,this.terrain);
       if(!bullet.active)continue;
       // Sort enemies and rocks together by the first contact along this frame's flight.
       const contacts=[...this.rocks,...this.enemies,...(this.crystals??[]),...(this.battleship?.active?[this.battleship.armour]:[])].filter(target=>target.active&&(target.age===undefined||target.age>=.7))
@@ -655,9 +667,9 @@ class Game {
       contacts.push({terrain:true,time:this.terrain?.hitTime(bullet)??Infinity});
       for(const target of this.enemyShots??this.enemyBullets)if(target.active&&!target.isBossWave&&(bullet.isWave||target.isEnemyMissile)){const time=relativeHitTime(bullet,target);if(time<=relativeHitTime(target,this.player))contacts.push({target,time,projectile:true});}
       const ordered=contacts.filter(hit=>Number.isFinite(hit.time)).sort((a,b)=>a.time-b.time);
-      for(const {target,projectile,terrain} of ordered){
+      for(const {target,projectile,terrain,time} of ordered){
         if(!bullet.active)break;
-        if(terrain){bullet.deactivate();break;}
+        if(terrain){if(bullet instanceof Missile)this.missileImpact(bullet,time);else bullet.deactivate();break;}
         if(!target.active)continue;
         if(projectile){
           if(!Number.isFinite(relativeHitTime(bullet,target)))continue;
@@ -665,6 +677,7 @@ class Game {
           this.burst(target.x,target.y,bullet.green?0x7dff8c:0x8effff,{count:3,glow:true});
           if(!bullet.isWave||bullet.energy<=0)bullet.deactivate();else bullet.updateAppearance();
         }else if(Number.isFinite(hitTime(bullet,target)))this.hitTarget(bullet,target);
+        if(bullet instanceof Missile&&!bullet.active)this.missileImpact(bullet,time);
       }
     }
     for(const bullet of this.enemyShots??this.enemyBullets){if(!bullet.active)continue;if(Number.isFinite(relativeHitTime(bullet,this.player))){bullet.deactivate();this.player.damage(this);if(this.state!=='playing')return;}}

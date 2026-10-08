@@ -26,6 +26,15 @@ const server=http.createServer((req,res)=>{
     await page.waitForTimeout(200);
     assert.equal(await page.evaluate(()=>__testGame.audio.scene),'fortress');
     await page.screenshot({path:path.join(output,'fortress.png')});
+    const flight=await page.evaluate(()=>{
+      const g=__testGame;g.togglePause();const m=g.missiles[0],t=g.terrain,start=35;t.update(start);const gap=t.safeGap(-10,.22);
+      m.activate(-10,gap.bottom+.7,{active:true,generation:1,x:30,y:-9},3,-.25);
+      const headings=[];let hit=false;
+      for(let i=0;i<100;i++){t.update(start+(i+1)*3/60);m.update(1/60,t);headings.push(m.heading);if(Number.isFinite(t.hitTime(m)))hit=true;}
+      const result={hit,active:m.active,x:m.x,rotation:m.mesh.rotation.z,heading:m.heading,turned:Math.max(...headings)-Math.min(...headings)>.1};
+      m.deactivate();g.resume();return result;
+    });
+    assert.equal(flight.hit,false);assert.equal(flight.active,true);assert.ok(flight.x>5);assert.ok(flight.turned);assert.equal(flight.rotation,flight.heading);
     await page.evaluate(()=>{__testGame.stageScroll=200;__testGame.updateStage2(0);__testGame.battleship.x=9;});
     await page.waitForTimeout(300);
     assert.equal(await page.evaluate(()=>__testGame.audio.scene),'boss');

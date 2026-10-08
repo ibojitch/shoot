@@ -399,3 +399,57 @@ let starts=0,continues=0,prevented=0;game.ui.start={onclick(){starts++;}};game.c
 console.log('PASS: capped-item fog conversion, frame-independent 100ms damage, one-second cutoff, fade/scroll, gear-preserving continue and context-specific S/C keys');
 
 }
+
+// Terrain-following missiles: real integration and swept collisions at 30/60/120 fps.
+function guidedMissile(x,y,heading=0,target=null){const m=Object.assign(Object.create(Missile.prototype),{mesh:mesh()});m.activate(x,y,target,3,heading);return m;}
+function testCorridor(points,side='bottom'){
+  const t=Object.create(Terrain.prototype);t.active=true;
+  t.colliders=points.slice(1).map((p,i)=>{
+    const a=points[i],b=p;const vertices=side==='bottom'?[[a[0],-12],[b[0],-12],b,a]:[a,b,[b[0],12],[a[0],12]];
+    return {left:a[0],right:b[0],a:a[1],b:b[1],side,vertices,scroll:0};
+  });return t;
+}
+for(const fps of [30,60,120])for(const side of ['bottom','top']){
+  const sign=side==='bottom'?1:-1;
+  const t=testCorridor([[-20,-4*sign],[-4,-4*sign],[2,-2*sign],[8,-3*sign],[20,-3*sign]],side);
+  const target={active:true,generation:1,x:30,y:-7*sign};const m=guidedMissile(-8,-2.7*sign,-.3*sign,target);
+  let turned=false;
+  for(let i=0;i<fps*1.6;i++){
+    m.update(1/fps,t);turned ||= m.heading*sign>.1;
+    assert.equal(t.hitTime(m),Infinity,`smooth ${side} collision at ${fps} fps x=${m.x} y=${m.y}`);
+    assert.ok(Math.abs(Math.hypot(m.vx,m.vy)-12)<1e-8);assert.ok(m.active);
+  }
+  assert.ok(turned);assert.ok(m.x>6);
+}
+// Left-facing missiles and lost targets still avoid terrain, without retargeting.
+const leftTerrain=testCorridor([[-20,-2],[-4,-2],[3,-4],[20,-4]]);
+const leftMissile=guidedMissile(7,-2.8,Math.PI+.2);
+for(let i=0;i<80;i++){leftMissile.update(1/60,leftTerrain);assert.equal(leftTerrain.hitTime(leftMissile),Infinity);}
+assert.ok(leftMissile.x<0);assert.equal(leftMissile.target,null);
+// A discontinuous vertical step is not promoted to a smooth ramp.
+const stepTerrain=testCorridor([[-20,-4],[0,-4]]);
+stepTerrain.colliders.push(...testCorridor([[0,0],[20,0]]).colliders);
+const stepMissile=guidedMissile(-3,-2);let stepContact=false;
+for(let i=0;i<30;i++){stepMissile.update(1/60,stepTerrain);if(Number.isFinite(stepTerrain.hitTime(stepMissile))){stepContact=true;break;}}
+assert.ok(stepContact);assert.equal(stepMissile.heading,0);
+// Game collision ordering: wall absorbs once; enemy takes normal missile damage once.
+for(const wallFirst of [false,true]){
+  const g=fixture(),m=guidedMissile(0,0);g.missiles=[m];g.terrain={active:false,hitTime:()=>wallFirst?.1:Infinity,resolvePlayer:()=>false};g.enemies=[enemy(1.2,0,3)];let blasts=0;
+  g.burst=()=>{blasts++;};g.update(.05);
+  assert.equal(m.active,false);assert.equal(g.enemies[0].hp,wallFirst?3:1);assert.equal(blasts,wallFirst?1:2);
+}
+console.log('PASS: terrain-following missiles at 30/60/120 fps, floor/ceiling, leftward flight, lost targets, constant speed, vertical steps, wall/enemy ordering and one-hit damage');
+for(const fps of [30,60,120])for(const initialOffset of [35,75,115])for(const side of ['bottom','top']){
+  const t=new Terrain({add(){}});t.update(initialOffset);const gap=t.safeGap(-10,.22);
+  const m=guidedMissile(-10,side==='bottom'?gap.bottom+.7:gap.top-.7,side==='bottom'?-.25:.25,{active:true,generation:1,x:30,y:side==='bottom'?-9:9});
+  for(let i=0;i<fps*1.8;i++){
+    t.update(initialOffset+(i+1)*3/fps);m.update(1/fps,t);
+    assert.equal(t.hitTime(m),Infinity,`scroll ${side} ${initialOffset} ${fps}: ${m.x},${m.y}`);
+  }
+}
+// A 90-degree corner must not be treated as a continuous navigable slope.
+const corner=testCorridor([[-12,4],[-4,-4],[4,4],[12,4]]);
+const probe={x:-5,y:-2,radius:.22,heading:-Math.PI/4,turnRadius:3};
+const firstOnly=Object.create(Terrain.prototype);firstOnly.active=true;firstOnly.colliders=[corner.colliders[0]];
+assert.equal(corner.missileHeading(probe,probe.heading),firstOnly.missileHeading(probe,probe.heading));
+console.log('PASS: scrolling real stage terrain at 30/60/120 fps and 90-degree corner exclusion');

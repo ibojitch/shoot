@@ -66,6 +66,45 @@ export class Terrain {
     return {bottom:boundary(i,'bottom')*(1-t)+boundary(i+1,'bottom')*t,top:boundary(i,'top')*(1-t)+boundary(i+1,'top')*t};
   }
   safeGap(x,radius){const a=this.gapAt(x-radius),b=this.gapAt(x+radius);return {bottom:Math.max(a.bottom,b.bottom)+radius+.08,top:Math.min(a.top,b.top)-radius-.08};}
+  missileHeading(missile, desired) {
+    if(!this.active)return desired;
+    const direction=Math.cos(missile.heading)>=0?1:-1;
+    const local=angle=>Math.atan2(Math.sin(angle),Math.cos(angle)*direction);
+    // Inspect only connected traversable surfaces. A vertical face/discontinuity
+    // remains a solid collision, rather than a route to climb or teleport over.
+    const look=Math.max(3,Math.min(6,missile.turnRadius*1.5));
+    let lower=-Math.PI/2+.02,upper=Math.PI/2-.02,constrained=false;
+    for(const side of ['bottom','top']){
+      const walls=this.colliders.filter(w=>w.side===side).sort((a,b)=>direction*(a.left-b.left));
+      let current=walls.findIndex(w=>missile.x>=w.left&&missile.x<=w.right);
+      if(current<0)continue;
+      const reachable=[];
+      for(let i=current;i<walls.length;i++){
+        const wall=walls[i];
+        if(!(wall.right>wall.left)||!Number.isFinite(wall.a)||!Number.isFinite(wall.b))break;
+        if(i>current){
+          const prior=walls[i-1];
+          const joined=direction>0?Math.abs(prior.right-wall.left)<1e-5&&Math.abs(prior.b-wall.a)<1e-5:Math.abs(prior.left-wall.right)<1e-5&&Math.abs(prior.a-wall.b)<1e-5;
+          const angle=w=>Math.atan2(w.b-w.a,w.right-w.left);
+          if(!joined||Math.abs(angle(wall)-angle(prior))>=Math.PI/2-1e-6)break;
+        }
+        reachable.push(wall);
+      }
+      for(let distance=.35;distance<=look;distance+=.35){
+        const x=missile.x+direction*distance,wall=reachable.find(w=>x>=w.left&&x<=w.right);
+        if(!wall)break;
+        const slope=(wall.b-wall.a)/(wall.right-wall.left),height=wall.a+(x-wall.left)*slope;
+        // Normal clearance includes the projectile radius and a small air gap.
+        const margin=(missile.radius+.22)*Math.hypot(1,slope);
+        const bound=Math.atan2(height+(side==='bottom'?margin:-margin)-missile.y,distance);
+        if(side==='bottom')lower=Math.max(lower,bound);else upper=Math.min(upper,bound);
+        constrained=true;
+      }
+    }
+    if(!constrained||lower>upper)return desired;
+    const angle=Math.max(lower,Math.min(upper,local(desired)));
+    return Math.atan2(Math.sin(angle),Math.cos(angle)*direction);
+  }
   hitTime(entity){let first=Infinity;if(this.active)for(const wall of this.colliders)first=Math.min(first,polygonHitTime(entity,wall.vertices,wall.scroll));return first;}
   resolvePlayer(player){
     if(!this.active||!Number.isFinite(this.hitTime(player)))return false;
