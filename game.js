@@ -4,7 +4,7 @@ import { WaveTrail } from './waveTrail.js';
 import { loadModel, fitModel } from './modelLoader.js';
 import { UNPO_CONFIG } from './unpoConfig.js?v=20261007-orb';
 import { Sound } from './sound.js?v=20261008-atmosphere';
-import { Scenery } from './scenery.js';
+import { Scenery } from './scenery.js?v=20261008-flight-variety';
 import { MobileDisplay } from './mobileDisplay.js?v=20261007-landscape';
 import { createPowerIcon } from './powerIcons.js?v=20261007-orb';
 import { Terrain, polygonHitTime } from './terrain.js?v=20261008-missile-terrain';
@@ -290,8 +290,8 @@ class Rock {
 }
 
 class Enemy {
-  constructor(scene,type){this.type=type;this.mesh=new THREE.Group();part(this.mesh,geometry.orb,material.enemy[type],0,0,0,1.3,1,1);part(this.mesh,geometry.box,material.enemy[type],.1,0,0,.5,1.8,.3);part(this.mesh,geometry.orb,material.glow,-.45,0,.4,.3,.3,.3);scene.add(this.mesh);this.radius=.65;this.deactivate();}
-  activate(y,time,difficulty){this.generation=(this.generation??0)+1;this.active=true;this.x=18;this.y=y;this.baseY=y;this.age=0;this.phase=time;this.avoidVelocity=0;this.avoidTarget=y;this.hp=this.type===2?3:2;this.speed=4+this.type*.5+difficulty;this.cooldown=1.1+Math.random()*.7;this.mesh.visible=true;this.mesh.position.set(this.x,this.y,-3);}
+  constructor(scene,type){this.type=type;this.mesh=new THREE.Group();part(this.mesh,geometry.orb,material.enemy[type%3],0,0,0,1.3,1,1);part(this.mesh,geometry.box,material.enemy[type%3],.1,0,0,.5,1.8,.3);part(this.mesh,geometry.orb,material.glow,-.45,0,.4,.3,.3,.3);scene.add(this.mesh);this.radius=.65;this.deactivate();}
+  activate(y,time,difficulty){this.generation=(this.generation??0)+1;this.active=true;this.x=18;this.y=y;this.baseY=y;this.age=0;this.phase=time;this.avoidVelocity=0;this.avoidTarget=y;this.hp=this.type===4?1:this.type===2?3:2;this.speed=(this.type===4?11:this.type===3?6.5:4+this.type*.5)+difficulty;this.departing=false;this.fired=false;this.cooldown=1.1+Math.random()*.7;this.mesh.visible=true;this.mesh.position.set(this.x,this.y,-3);}
   deactivate(){this.active=false;this.mesh.visible=false;}
   avoidTerrain(dt,game){
     const here=game.terrain.safeGap(this.x,this.radius+.15),ahead=game.terrain.safeGap(this.x-3,this.radius+.15);
@@ -303,7 +303,16 @@ class Enemy {
     // Only emergency contact correction; ordinary steering never snaps position.
     if(this.y<here.bottom||this.y>here.top){this.y=clamp(this.y,here.bottom,here.top);this.avoidVelocity=0;}
   }
-  update(dt,game){this.age+=dt;this.x-=this.speed*dt;if(game.stage===2&&game.terrain?.active){this.avoidTerrain(dt,game);}else if(this.type===1)this.y=clamp(this.baseY+Math.sin(this.age*3+this.phase)*1.7,-7,7);if(this.type===2&&game.stage!==2)this.y+=clamp(game.player.y-this.y,-1,1)*dt*1.8;this.mesh.position.set(this.x,this.y,-3*Math.max(0,1-this.age/.7));this.mesh.rotation.x+=dt*.8;this.mesh.rotation.y=Math.sin(this.age*2)*.35;this.cooldown-=dt;if(this.type===2&&this.cooldown<=0&&this.x<15){let dx=game.player.x-this.x,dy=game.player.y-this.y;const length=Math.max(.01,Math.hypot(dx,dy));game.shoot(this.x-.5,this.y,dx/length*8,dy/length*8,true);this.cooldown=1.8;}if(this.x<-18)this.deactivate();}
+  update(dt,game){this.age+=dt;
+    if(this.type===4){
+      if(!this.departing){this.x-=this.speed*dt;if(this.x<=5){this.departing=true;if(!this.fired){const dx=game.player.x-this.x,dy=game.player.y-this.y,length=Math.max(.01,Math.hypot(dx,dy));game.shoot(this.x-.5,this.y,dx/length*9,dy/length*9,true);this.fired=true;}}}
+      else{this.x+=this.speed*1.3*dt;this.y+=(this.baseY>=0?1:-1)*2*dt;}
+      this.mesh.position.set(this.x,this.y,-3*Math.max(0,1-this.age/.7));this.mesh.rotation.z=this.departing?Math.PI:0;
+      if(this.x>22||Math.abs(this.y)>10)this.deactivate();return;
+    }
+    this.x-=this.speed*dt;
+    if(this.type===3&&game.stage!==2)this.y+=clamp(game.player.y-this.y,-3.2*dt,3.2*dt);
+    if(game.stage===2&&game.terrain?.active){this.avoidTerrain(dt,game);}else if(this.type===1)this.y=clamp(this.baseY+Math.sin(this.age*3+this.phase)*1.7,-7,7);if(this.type===2&&game.stage!==2)this.y+=clamp(game.player.y-this.y,-1,1)*dt*1.8;this.mesh.position.set(this.x,this.y,-3*Math.max(0,1-this.age/.7));this.mesh.rotation.x+=dt*.8;this.mesh.rotation.y=Math.sin(this.age*2)*.35;this.cooldown-=dt;if(this.type===2&&this.cooldown<=0&&this.x<15){let dx=game.player.x-this.x,dy=game.player.y-this.y;const length=Math.max(.01,Math.hypot(dx,dy));game.shoot(this.x-.5,this.y,dx/length*8,dy/length*8,true);this.cooldown=1.8;}if(this.x<-18)this.deactivate();}
 }
 
 class UnpoCrystal extends Bullet {
@@ -503,7 +512,7 @@ class Game {
     this.renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));this.renderer.outputColorSpace=THREE.SRGBColorSpace;document.querySelector('#game').prepend(this.renderer.domElement);
     this.waveTrail=new WaveTrail(document.querySelector('#game'));
     this.scene.add(new THREE.HemisphereLight(0xaadfff,0x263053,2));const light=new THREE.DirectionalLight(0xffffff,2.5);light.position.set(-3,8,12);this.scene.add(light);
-    this.player=new Player(this.scene,model);this.bullets=Array.from({length:96},()=>new Bullet(this.scene,false));this.enemyBullets=Array.from({length:64},()=>new Bullet(this.scene,true));this.enemies=Array.from({length:24},(_,i)=>new Enemy(this.scene,i%3));
+    this.player=new Player(this.scene,model);this.bullets=Array.from({length:96},()=>new Bullet(this.scene,false));this.enemyBullets=Array.from({length:64},()=>new Bullet(this.scene,true));this.enemies=Array.from({length:40},(_,i)=>new Enemy(this.scene,i%5));
     this.orb=new OrbitOrb(this.scene);this.fogs=Array.from({length:12},()=>new YellowFog(this.scene));
     this.rocks=Array.from({length:32},()=>new Rock(this.scene));
     this.items=Array.from({length:12},()=>new PowerItem(this.scene));this.missiles=Array.from({length:12},()=>new Missile(this.scene,false));
@@ -637,7 +646,7 @@ class Game {
   end(){this.state='over';this.orb?.reset();this.mobile?.stop();this.audio?.finish();this.ui.charge(0);this.player.mesh.visible=false;this.input.clear();this.ui.show('GAME OVER',`FINAL SCORE  ${String(this.score).padStart(6,'0')}`,'RESTART [S]');if(this.ui.continueButton)this.ui.continueButton.hidden=false;}
   togglePause(){if(this.state==='playing'){this.state='paused';this.audio?.pause();this.input.clear();this.ui.charge(0);this.ui.show('PAUSED','ひと休みして、再び宇宙へ。','RESUME');this.ui.pause.textContent='▶';}else if(this.state==='paused')this.resume();}
   resume(){this.input.clear();this.state='playing';this.ui.hide();this.ui.pause.textContent='Ⅱ';this.last=performance.now();this.audio?.start(false);void this.mobile?.enter();}
-  update(dt){if(this.transition&&this.updateTransition(dt))return;if(this.stage===2)this.updateStage2(dt);this.elapsed+=dt;this.player.previousX=this.player.x;this.player.previousY=this.player.y;this.player.update(dt,this.input,this);if(this.terrain?.resolvePlayer(this.player)){this.player.damage(this);if(this.state!=='playing')return;}this.spawnTimer-=dt;if(this.spawnTimer<=0&&!this.transition&&!(this.stage===2&&this.shipSpawned)){const type=this.spawnCount++%3;const enemy=this.enemies.find(e=>!e.active&&!e.isUnpo&&!e.isTurret&&e.type===type);if(enemy){const gap=this.stage===2?this.terrain.gapAt(18):{bottom:-7,top:7};enemy.activate(gap.bottom+1+Math.random()*(gap.top-gap.bottom-2),this.elapsed,Math.min(3,this.elapsed/45));}this.spawnTimer=Math.max(.55,1.3-this.elapsed*.003);}
+  update(dt){if(this.transition&&this.updateTransition(dt))return;if(this.stage===2)this.updateStage2(dt);this.elapsed+=dt;this.player.previousX=this.player.x;this.player.previousY=this.player.y;this.player.update(dt,this.input,this);if(this.terrain?.resolvePlayer(this.player)){this.player.damage(this);if(this.state!=='playing')return;}this.spawnTimer-=dt;if(this.spawnTimer<=0&&!this.transition&&!(this.stage===2&&this.shipSpawned)){const type=this.spawnCount++%(this.stage===2?3:5);const enemy=this.enemies.find(e=>!e.active&&!e.isUnpo&&!e.isTurret&&e.type===type);if(enemy){const gap=this.stage===2?this.terrain.gapAt(18):{bottom:-7,top:7};enemy.activate(gap.bottom+1+Math.random()*(gap.top-gap.bottom-2),this.elapsed,Math.min(3,this.elapsed/45));if(type===4){for(let i=1;i<=2;i++){const wing=this.enemies.find(e=>!e.active&&!e.isUnpo&&!e.isTurret&&e.type===4);if(wing){wing.activate(clamp(enemy.baseY+(i===1?-1.1:1.1),-6,6),this.elapsed,Math.min(3,this.elapsed/45));wing.x=18+i*1.4;}}}}this.spawnTimer=Math.max(.55,1.3-this.elapsed*.003);}
     for(const enemy of this.enemies)if(enemy.active){enemy.previousX=enemy.x;enemy.previousY=enemy.y;enemy.update(dt,this);}
     this.ui.tick?.(dt);this.unpoTimer-=dt;
     if(this.unpoTimer<=0&&this.stage!==2&&!this.transition){this.spawnUnpo();this.unpoTimer=UNPO_CONFIG.spawnInterval;}
@@ -685,7 +694,7 @@ class Game {
     if(this.battleship?.active&&Number.isFinite(hitTime(this.player,this.battleship.armour))){this.player.damage(this);if(this.state!=='playing')return;}
     for(const rock of this.rocks)if(rock.active&&overlap(rock,this.player)){this.player.damage(this);if(this.state!=='playing')return;}
   }
-  animateBackground(dt){this.scenery?.update(dt,this.stage,this.stageScroll);}
+  animateBackground(dt){this.scenery?.update(dt,this.stage,this.stageScroll,(this.camera.right-this.camera.left)/Math.max(1,innerWidth));}
   renderScene(){this.renderer.clear();this.camera.layers.set(0);this.renderer.render(this.scene,this.camera);if(this.fadeAmount>0){this.fadeMaterial.opacity=this.fadeAmount;this.renderer.render(this.fadeScene,this.fadeCamera);}this.renderer.clearDepth();this.camera.layers.set(1);const background=this.scene.background;this.scene.background=null;this.renderer.render(this.scene,this.camera);this.scene.background=background;this.camera.layers.set(0);}
   frame(now){const dt=Math.min((now-this.last)/1000,.04);this.last=now;this.audio?.setScene(this.stage,this.enemies.some(enemy=>enemy.isUnpo&&enemy.active));this.audio?.tick();if(this.state==='playing'&&!this.mobile?.blocked)this.update(dt);if(this.state!=='paused'&&!this.mobile?.blocked){this.animateBackground(dt);this.updateEffects(dt);}this.renderScene();this.waveTrail.canvas.style.opacity=String(1-this.fadeAmount);this.waveTrail.render(this.bullets,this.camera);this.ui.fadeAmount=this.fadeAmount;this.ui.enemyHealth(this.enemies,this.camera);this.ui.equipment(this.player,this.debugInvincible);requestAnimationFrame(this.frame);}
 }

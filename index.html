@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#070d1c">
   <title>I-JIGEN SHOT / 2.5D Shooter</title>
-  <link rel="stylesheet" href="style.css?v=20261008-atmosphere">
+  <link rel="stylesheet" href="style.css?v=20261008-flight-variety?v=20261008-atmosphere">
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script>
 </head>
 <body>
@@ -23,7 +23,7 @@
     <footer>MOVE <b>WASD / ↑↓←→</b><span>FIRE <b>SPACE</b></span><span class="copyright">©BOJIGEN</span></footer><div class="mobile-copyright">©BOJIGEN</div>
   </main>
   <script type="module">
-    import('./game.js?v=20261008-missile-terrain').catch(error => {
+    import('./game.js?v=20261008-flight-variety').catch(error => {
       console.error(error);
       document.querySelector('#title').textContent = '起動できませんでした';
       document.querySelector('#message').textContent = '通信状態とWebGL対応を確認し、ローカルHTTPサーバーから開いてください。';

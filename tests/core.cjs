@@ -453,3 +453,20 @@ const probe={x:-5,y:-2,radius:.22,heading:-Math.PI/4,turnRadius:3};
 const firstOnly=Object.create(Terrain.prototype);firstOnly.active=true;firstOnly.colliders=[corner.colliders[0]];
 assert.equal(corner.missileHeading(probe,probe.heading),firstOnly.missileHeading(probe,probe.heading));
 console.log('PASS: scrolling real stage terrain at 30/60/120 fps and 90-degree corner exclusion');
+
+// New flight patterns preserve speed differences and a one-shot HP1 formation exit.
+for(const fps of [30,60,120]){
+  const g={stage:1,player:{x:-10,y:3},shots:0,shoot(){this.shots++;}};
+  const seeker=Object.assign(Object.create(Enemy.prototype),{type:3,mesh:mesh()});seeker.activate(-3,0,0);
+  for(let i=0;i<fps;i++)seeker.update(1/fps,g);
+  assert.ok(seeker.y>0);assert.ok(Math.abs(seeker.x-11.5)<1e-8);
+  const raider=Object.assign(Object.create(Enemy.prototype),{type:4,mesh:mesh()});raider.activate(2,0,0);
+  assert.equal(raider.hp,1);assert.ok(raider.speed>seeker.speed);
+  for(let i=0;i<fps*4&&raider.active;i++)raider.update(1/fps,g);
+  assert.equal(g.shots,1);assert.equal(raider.active,false);assert.equal(raider.departing,true);
+  raider.activate(-2,0,0);assert.equal(raider.fired,false);assert.equal(raider.departing,false);
+}
+game=fixture();game.spawnTimer=0;game.spawnCount=4;game.stage=1;game.elapsed=0;
+game.enemies=Array.from({length:3},()=>Object.assign(Object.create(Enemy.prototype),{type:4,mesh:mesh(),active:false}));
+game.update(0);assert.equal(game.enemies.filter(e=>e.active).length,3);assert.deepEqual(game.enemies.map(e=>e.hp),[1,1,1]);
+console.log('PASS: seeker approach, fast HP1 three-ship formation, single aimed shot, exit and pool reset at 30/60/120fps');

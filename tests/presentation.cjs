@@ -18,6 +18,19 @@ const server=http.createServer((req,res)=>{
     const url=`http://127.0.0.1:${server.address().port}`;
     await page.goto(url);await page.waitForFunction(()=>!!globalThis.__testGame);
     await page.screenshot({path:path.join(output,'title.png')});
+    for(const viewport of [{width:857,height:482},{width:667,height:375},{width:360,height:740}]){
+      await page.setViewportSize(viewport);
+      for(const title of ['I-JIGEN SHOT','MISSION CLEAR','GAME OVER']){
+        await page.evaluate(title=>__testGame.ui.show(title,'FINAL SCORE 005000','RESTART'),title);
+        const fits=await page.locator('#title').evaluate(el=>{const r=el.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(el);const text=range.getBoundingClientRect();return text.left>=0&&text.right<=innerWidth&&el.scrollWidth<=el.clientWidth+1&&r.bottom<=innerHeight;});
+        assert.ok(fits,`${title} clipped at ${viewport.width}`);
+      }
+      await page.screenshot({path:path.join(output,`title-fit-${viewport.width}.png`)});
+    }
+    await page.setViewportSize({width:1280,height:720});
+    const drift=await page.evaluate(()=>{const g=__testGame,before=g.scenery.spaceOffset;g.animateBackground(2);return (g.scenery.spaceOffset-before)/((g.camera.right-g.camera.left)/innerWidth);});
+    assert.ok(Math.abs(drift-1)<1e-6);
+
     await page.locator('#start').click();
     await page.evaluate(()=>{__testGame.debugInvincible=true;});
     await page.waitForTimeout(700);

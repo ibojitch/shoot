@@ -28,6 +28,7 @@ export class Scenery {
       }
       for(let i=0;i<850;i++){ctx.fillStyle=`rgba(169,210,238,${.12+rng()*.5})`;ctx.fillRect(rng()*w,rng()*h,rng()<.03?2:1,1);}
     });
+    nebula.wrapS=THREE.RepeatWrapping;this.spaceOffset=0;
     this.cloud=plane(nebula,76,38,-38);this.space.add(this.cloud);
     const planet=texture(768,768,(ctx,w,h)=>{
       const x=w/2,y=h/2,r=w*.42;
@@ -45,6 +46,9 @@ export class Scenery {
       const g=ctx.createRadialGradient(0,0,0,0,0,w*.49);g.addColorStop(0,'rgba(159,169,255,.35)');g.addColorStop(.16,'rgba(112,68,187,.2)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(-w/2,-h*4,w,h*8);
     });
     this.rift=plane(rift,44,10,-27);this.rift.position.set(-4,4,-27);this.rift.rotation.z=.28;this.space.add(this.rift);
+    this.debris=[];
+    const debrisGeometry=new THREE.IcosahedronGeometry(1,0),debrisMaterial=new THREE.MeshBasicMaterial({color:0x1b3042,wireframe:true,transparent:true,opacity:.35,fog:false});
+    for(let i=0;i<7;i++){const mesh=new THREE.Mesh(debrisGeometry,debrisMaterial);mesh.position.set((rng()-.5)*64,(i%2?1:-1)*(6+rng()*3),-7);mesh.scale.setScalar(.3+rng()*.5);this.space.add(mesh);this.debris.push(mesh);}
     this.stars=[];
     for(let layer=0;layer<3;layer++){
       const positions=new Float32Array(100*3);
@@ -96,13 +100,17 @@ export class Scenery {
     }
     this.update(0,1,0);
   }
-  update(dt,stage,scroll) {
+  update(dt,stage,scroll,unitsPerPixel=32/1280) {
     this.time+=dt;this.space.visible=stage!==2;this.fortress.visible=stage===2;
     if(stage===2){
       this.panels.forEach((mesh,i)=>{mesh.position.x=i*24-48-(scroll*.22%24);});
       this.beams.forEach((mesh,i)=>{mesh.position.x=i*8-36-(scroll*.4%8);});
     }else{
-      this.planet.position.x=10+Math.sin(this.time*.025)*.6;this.rift.material.opacity=.8+Math.sin(this.time*.25)*.12;
+      const drift=dt*unitsPerPixel*.5;this.spaceOffset+=drift;
+      this.cloud.material.map.offset.x=this.spaceOffset/76;
+      this.planet.position.x=10-this.spaceOffset%80;this.rift.position.x=-4-this.spaceOffset%80;
+      for(const mesh of this.debris){mesh.position.x-=dt*.65;if(mesh.position.x< -34)mesh.position.x+=68;mesh.rotation.z+=dt*.06;}
+      this.rift.material.opacity=.8+Math.sin(this.time*.25)*.12;
       for(const {points,speed} of this.stars){const p=points.geometry.attributes.position;for(let i=0;i<p.count;i++){p.array[i*3]-=speed*dt;if(p.array[i*3]<-40)p.array[i*3]+=80;}p.needsUpdate=true;}
     }
   }
